@@ -1,0 +1,10 @@
+{
+  "_comment": "MCP server snippet for Engram. The installer merges this into ~/.claude/settings.json (or wherever Claude Code expects MCP configs). Replace {{ENGRAM_PATH}} with the absolute path to the engram binary chosen at install time.",
+  "mcpServers": {
+    "engram": {
+      "command": "{{ENGRAM_PATH}}",
+      "args": ["serve"],
+      "env": {}
+    }
+  }
+}

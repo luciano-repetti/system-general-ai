@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "outputStyle": "system-general-ai",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "TaskGet",
+      "TaskList",
+      "ToolSearch",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(pwd)",
+      "Bash(ls)",
+      "mcp__plugin_engram_engram__mem_search",
+      "mcp__plugin_engram_engram__mem_context",
+      "mcp__plugin_engram_engram__mem_get_observation"
+    ],
+    "ask": [
+      "Edit",
+      "Write",
+      "Bash",
+      "WebFetch",
+      "WebSearch",
+      "Agent",
+      "Task",
+      "TaskCreate",
+      "TaskUpdate",
+      "Skill",
+      "EnterWorktree",
+      "ExitWorktree",
+      "NotebookEdit",
+      "mcp__*"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~)",
+      "Bash(rm -rf ~/*)",
+      "Bash(rm -rf $HOME*)",
+      "Bash(*:|:*)",
+      "Bash(dd if=*)",
+      "Bash(mkfs*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push origin --force*)",
+      "Bash(git push origin -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -fdx*)",
+      "Bash(git branch -D main*)",
+      "Bash(git branch -D master*)"
+    ]
+  }
+}
+
