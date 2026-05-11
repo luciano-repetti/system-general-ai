@@ -1,0 +1,79 @@
+# system-general-ai — Global Rules
+
+> Operational rules that apply across every project. The Output Style handles HOW you communicate; this file handles WHAT you do and don't do.
+
+## Core principles
+
+- Edit existing files over creating new ones.
+- Don't create documentation files (.md, README, etc) unless the user explicitly asks.
+- Don't add comments unless they explain a non-obvious WHY (a hidden constraint, a workaround, a surprise).
+- Don't add error handling, validation, or fallbacks for scenarios that cannot happen.
+- Don't add features, abstractions, or refactors beyond what the task requires.
+- Don't introduce backwards-compatibility shims when the code can simply change.
+
+## Code conventions
+
+- **Conventional commits only**. Format: `type(scope): subject`.
+- **NO** "Co-Authored-By" lines. **NO** AI attribution in commits, PRs, or messages.
+- **NO** `--no-verify`, `--no-gpg-sign`, or any hook-skipping flag unless the user explicitly asks. If a hook fails, fix the underlying issue.
+- Prefer creating a new commit over amending an existing one.
+
+## Verification
+
+- Don't agree with technical claims without verification. Say "let me verify" / "dejame verificar" and check code or docs first.
+- If the user is wrong, explain WHY with evidence (file paths, line numbers, command output).
+- If you were wrong, acknowledge directly with proof.
+- Verify recommendations from memory before acting on them — names of files, functions, and flags can be stale.
+
+## Risk awareness
+
+For destructive operations, confirm before acting unless explicitly authorized:
+
+- File system: `rm -rf`, deleting branches, dropping tables
+- Git history: `reset --hard`, force push, amending published commits
+- Shared state: pushing, opening/closing PRs, posting messages, modifying CI
+
+For one-off authorizations, do exactly what was asked — no more. A green light to push once is not a green light to push tomorrow.
+
+## Tools
+
+- Use Read, Edit, Grep, Glob over Bash for file operations.
+- Run independent tool calls in parallel.
+- Use Task system to track multi-step work. Mark tasks `in_progress` when you start, `completed` as soon as done.
+- Reserve Bash for shell-only operations (git state, build, install, run).
+
+## Shell command delegation
+
+For shell commands with anticipated output >5000 tokens (test runs, builds, log dumps, large diffs, file listings), delegate to the `shell-runner` skill (Haiku sub-agent) instead of running directly. The full output stays in the sub-agent's context; only a summary returns. Short commands (`git status`, `ls`, `pwd`, `cat <small-file>`) execute directly.
+
+## Memory protocol (Engram)
+
+This project uses Engram for persistent memory across sessions. Save proactively — do not wait to be asked.
+
+**Save** on:
+- Architecture or design decisions
+- Bug fixes (include root cause)
+- Patterns established (naming, structure)
+- User preferences or constraints learned
+- Non-obvious discoveries about the codebase
+
+**Search** when:
+- The user references prior work ("what did we do", "remember", "acordate")
+- Starting a task that may have been done before
+- The user's first message references a topic you have no context on
+
+**Format**: title (verb + what), type (decision / bugfix / pattern / etc), scope (`project` default, `personal` for cross-project), topic_key (stable, e.g. `architecture/auth-model`).
+
+**Before recommending from memory**: verify the file/function/flag still exists.
+
+**Do not rely on conversation history**: after saving a decision/discovery to Engram, treat the chat history as ephemeral — future turns may compact it away. If you need to reference something later, retrieve it via `mem_search`, do NOT assume the chat will remember it. Save proactively so the user can run `/compact` without losing context.
+
+**Caching practices** (helps Anthropic's prompt caching work better):
+- Don't rewrite `CLAUDE.md` or `settings.json` during a working session unless the user asked for it. Stable system content = better cache hits.
+- Prefer Edit (string replace) over Write (full rewrite) when modifying existing files — Edit returns small confirmations; Write returns full content.
+- Sub-agents (Agent tool with `model=haiku/sonnet/opus`) get a fresh context per delegation. Use them for tasks that would otherwise inflate the main context (large reads, verbose command outputs).
+
+## Session boundaries
+
+Before saying "done" / "listo" on substantial work, save a session summary covering: Goal, Discoveries, Accomplished, Next Steps, Relevant Files.
+
