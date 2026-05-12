@@ -10,9 +10,9 @@ import (
 
 func fakeTemplates() fstest.MapFS {
 	return fstest.MapFS{
-		"templates/gemini/GEMINI.md.global.tmpl": {Data: []byte("# Global Rules\nfake-rules\n")},
-		"templates/gemini/orchestrator.md":       {Data: []byte("# Orchestrator\nfake-orch\n")},
-		"templates/gemini/skills/sdd-init/SKILL.md":  {Data: []byte("---\nname: sdd-init\n---\nfake init\n")},
+		"gemini/GEMINI.md.global.tmpl": {Data: []byte("# Global Rules\nfake-rules\n")},
+		"gemini/orchestrator.md":       {Data: []byte("# Orchestrator\nfake-orch\n")},
+		"gemini/skills/sdd-init/SKILL.md":  {Data: []byte("---\nname: sdd-init\n---\nfake init\n")},
 	}
 }
 
