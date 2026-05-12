@@ -7,9 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 
 	"github.com/lucianorepetti/system-general-ai/internal/claude"
+	"github.com/lucianorepetti/system-general-ai/internal/gemini"
 )
 
 var uninstallCmd = &cobra.Command{
@@ -20,10 +22,10 @@ when the wrapper can recognize what's ours vs theirs.
 
 Specifically:
   - The system-general-ai output-style file
-  - The marker-delimited sections in CLAUDE.md (global-rules, sdd-orchestrator)
-  - The system-general-ai skill files (sdd-*, shell-runner, compact-suggest)
-  - settings.json: outputStyle (key removed), permissions (only if recognized as ours),
-    mcpServers.engram (only if it points at our binary)
+  - The marker-delimited sections in CLAUDE.md / GEMINI.md
+  - The system-general-ai skill files
+  - settings.json (Claude): outputStyle, permissions, mcpServers.engram
+  - Permissive policy (Gemini)
   - Engram binary (only with --remove-engram)
 
 Note: settings.json values that we previously OVERWROTE (e.g. a non-default
@@ -39,18 +41,50 @@ func init() {
 }
 
 func runUninstall(cmd *cobra.Command, _ []string) error {
-	instances, err := claude.DetectInstances()
-	if err != nil {
-		return err
+	var targets []string
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title("Select Platforms to Uninstall").
+				Description("Choose the AI ecosystems to clean up").
+				Options(
+					huh.NewOption("Claude Code", "claude").Selected(true),
+					huh.NewOption("Gemini CLI", "gemini").Selected(true),
+				).
+				Value(&targets),
+		),
+	)
+
+	if err := form.Run(); err != nil {
+		return fmt.Errorf("uninstallation aborted: %w", err)
 	}
+
+	if len(targets) == 0 {
+		return fmt.Errorf("no platforms selected for uninstallation")
+	}
+
 	out := cmd.OutOrStdout()
 
-	for _, inst := range instances {
-		if err := uninstallFromInstance(inst); err != nil {
-			fmt.Fprintf(out, "  ✗ %s — %v\n", inst.Path, err)
-			continue
+	for _, target := range targets {
+		if target == "claude" {
+			instances, err := claude.DetectInstances()
+			if err != nil {
+				return err
+			}
+			for _, inst := range instances {
+				if err := uninstallFromInstance(inst); err != nil {
+					fmt.Fprintf(out, "  ✗ Claude: %s — %v\n", inst.Path, err)
+					continue
+				}
+				fmt.Fprintf(out, "  ✓ Claude: %s\n", inst.Path)
+			}
+		} else if target == "gemini" {
+			if err := uninstallFromGemini(); err != nil {
+				fmt.Fprintf(out, "  ✗ Gemini: %v\n", err)
+			} else {
+				fmt.Fprintf(out, "  ✓ Gemini: successfully cleaned up\n")
+			}
 		}
-		fmt.Fprintf(out, "  ✓ %s\n", inst.Path)
 	}
 
 	if removeEngram {
@@ -63,6 +97,43 @@ func runUninstall(cmd *cobra.Command, _ []string) error {
 	}
 
 	fmt.Fprintln(out, "\nDone.")
+	return nil
+}
+
+func uninstallFromGemini() error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	// 1. Remove marker sections from GEMINI.md
+	geminiPath := filepath.Join(cwd, "GEMINI.md")
+	for _, section := range []string{"global-rules", "sdd-orchestrator"} {
+		if err := gemini.RemoveMarkedSection(geminiPath, section); err != nil {
+			return fmt.Errorf("remove gemini marker %s: %w", section, err)
+		}
+	}
+
+	// 2. Remove our skills from ~/.gemini/skills/
+	home, _ := os.UserHomeDir()
+	managed := []string{
+		"sdd-init", "sdd-explore", "sdd-propose",
+		"sdd-spec", "sdd-design", "sdd-tasks",
+		"sdd-apply", "sdd-verify", "sdd-archive",
+		"shell-runner", "compact-suggest",
+	}
+	for _, name := range managed {
+		skillDir := filepath.Join(home, ".gemini", "skills", name)
+		_ = os.Remove(filepath.Join(skillDir, "SKILL.md"))
+		_ = os.Remove(skillDir)
+	}
+
+	// 3. Remove permissive policy
+	policyPath := filepath.Join(home, ".gemini", "policies", "permissive.toml")
+	if err := os.Remove(policyPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove gemini policy: %w", err)
+	}
+
 	return nil
 }
 
