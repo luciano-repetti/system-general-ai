@@ -120,13 +120,6 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func engramBinaryName() string {
-	if runtime.GOOS == "windows" {
-		return "engram.exe"
-	}
-	return "engram"
-}
-
 // defaultBinDir returns the user-level bin directory we install engram into.
 //   Linux/macOS: $HOME/.local/bin
 //   Windows:     %LOCALAPPDATA%\system-general-ai\bin
