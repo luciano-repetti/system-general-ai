@@ -2,6 +2,7 @@ package gemini
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -11,8 +12,10 @@ import (
 
 // SyncOptions contains configuration for syncing Gemini CLI templates
 type SyncOptions struct {
-	Templates fs.FS
-	EnableSDD bool
+	Templates    fs.FS
+	EnableSDD    bool
+	Persona      string
+	EngramBinary string
 }
 
 const (
@@ -28,12 +31,22 @@ func Sync(projectDir string, opts SyncOptions) error {
 		return err
 	}
 
-	// 2. Sync skills to global Gemini CLI config (~/.gemini/skills/)
+	// 2. Sync global GEMINI.md to ~/.gemini/GEMINI.md
+	if err := syncGlobalRules(opts); err != nil {
+		return err
+	}
+
+	// 3. Sync skills to global Gemini CLI config (~/.gemini/skills/)
 	if err := syncGlobalSkills(opts); err != nil {
 		return err
 	}
 
-	// 3. Sync permissive policy to global Gemini CLI config (~/.gemini/policies/)
+	// 4. Sync global settings (~/.gemini/settings.json) for Engram MCP
+	if err := syncGlobalSettings(opts); err != nil {
+		return err
+	}
+
+	// 5. Sync permissive policy to global Gemini CLI config (~/.gemini/policies/)
 	if err := syncGlobalPolicy(); err != nil {
 		return err
 	}
@@ -64,10 +77,123 @@ func syncProjectRules(projectDir string, opts SyncOptions) error {
 		content = mergeMarkedSection(content, "sdd-orchestrator", orchestrator)
 	}
 
+	// Apply persona if provided
+	if opts.Persona != "" {
+		personaSection := []byte(fmt.Sprintf("## Persona\n\n%s\n", opts.Persona))
+		content = mergeMarkedSection(content, "persona", personaSection)
+	} else {
+		// If persona is empty, we remove the marked section to stay neutral
+		content = removeMarkedSectionContent(content, "persona")
+	}
+
 	if err := os.WriteFile(path, content, 0644); err != nil {
 		return fmt.Errorf("write GEMINI.md: %w", err)
 	}
 	return nil
+}
+
+func syncGlobalRules(opts SyncOptions) error {
+	home, _ := os.UserHomeDir()
+	globalGeminiPath := filepath.Join(home, ".gemini", "GEMINI.md")
+	
+	// We treat the global GEMINI.md similarly to the project one
+	content, err := os.ReadFile(globalGeminiPath)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	globalRules, err := fs.ReadFile(opts.Templates, "templates/gemini/GEMINI.md.global.tmpl")
+	if err != nil {
+		return err
+	}
+	content = mergeMarkedSection(content, "global-rules", globalRules)
+
+	if opts.Persona != "" {
+		personaSection := []byte(fmt.Sprintf("## Persona\n\n%s\n", opts.Persona))
+		content = mergeMarkedSection(content, "persona", personaSection)
+	} else {
+		content = removeMarkedSectionContent(content, "persona")
+	}
+
+	if err := os.MkdirAll(filepath.Dir(globalGeminiPath), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(globalGeminiPath, content, 0644)
+}
+
+func syncGlobalSettings(opts SyncOptions) error {
+	if opts.EngramBinary == "" {
+		return nil
+	}
+
+	home, _ := os.UserHomeDir()
+	settingsPath := filepath.Join(home, ".gemini", "settings.json")
+	
+	existing, err := readJSONOrEmpty(settingsPath)
+	if err != nil {
+		return err
+	}
+
+	// For Gemini CLI, the MCP configuration structure is not officially documented 
+	// in the same way as Claude Code, but many tools use an "mcpServers" block.
+	// If Gemini CLI starts supporting it natively, we are ready.
+	mcpServers, ok := existing["mcpServers"].(map[string]any)
+	if !ok {
+		mcpServers = map[string]any{}
+	}
+
+	mcpServers["engram"] = map[string]any{
+		"command": opts.EngramBinary,
+		"args":    []string{"serve"},
+		"env":     map[string]any{},
+	}
+	existing["mcpServers"] = mcpServers
+
+	return writeJSON(settingsPath, existing)
+}
+
+func readJSONOrEmpty(path string) (map[string]any, error) {
+	out := map[string]any{}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return out, nil
+		}
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	if len(raw) == 0 {
+		return out, nil
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return out, nil
+}
+
+func writeJSON(path string, data map[string]any) error {
+	out, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(out, '\n'), 0644)
+}
+
+func removeMarkedSectionContent(content []byte, id string) []byte {
+	startMarker := fmt.Sprintf(markerStartFmt, id)
+	endMarker := fmt.Sprintf(markerEndFmt, id)
+
+	startIdx := strings.Index(string(content), startMarker)
+	endIdx := strings.Index(string(content), endMarker)
+
+	if startIdx == -1 || endIdx == -1 {
+		return content
+	}
+
+	result := append(content[:startIdx], content[endIdx+len(endMarker):]...)
+	return []byte(strings.TrimSpace(string(result)) + "\n")
 }
 
 func syncGlobalSkills(opts SyncOptions) error {

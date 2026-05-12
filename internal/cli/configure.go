@@ -2,11 +2,14 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/spf13/cobra"
 
 	"github.com/lucianorepetti/system-general-ai/internal/claude"
+	"github.com/lucianorepetti/system-general-ai/internal/gemini"
 )
 
 var configureCmd = &cobra.Command{
@@ -83,6 +86,18 @@ func runConfigurePersona(cmd *cobra.Command, args []string) error {
 
 	if err := claude.ApplyPersonaToInstances(instances, persona); err != nil {
 		return fmt.Errorf("apply persona: %w", err)
+	}
+
+	// Also sync with Gemini CLI
+	cwd, _ := os.Getwd()
+	geminiOpts := gemini.SyncOptions{
+		Templates:    templates,
+		EnableSDD:    true,
+		Persona:      persona,
+		EngramBinary: filepath.Join(defaultBinDir(), engramBinaryName()),
+	}
+	if err := gemini.Sync(cwd, geminiOpts); err != nil {
+		fmt.Fprintf(cmd.OutOrStderr(), "Warning: failed to sync persona to Gemini CLI: %v\n", err)
 	}
 
 	out := cmd.OutOrStdout()

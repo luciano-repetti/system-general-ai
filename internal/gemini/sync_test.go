@@ -16,49 +16,67 @@ func fakeTemplates() fstest.MapFS {
 	}
 }
 
-func TestSync_ProjectRules(t *testing.T) {
-	tmp := t.TempDir()
+func TestSync(t *testing.T) {
+	projectDir := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("USERPROFILE", home) // For Windows
+	t.Setenv("HOME", home)        // For Unix
+
 	opts := SyncOptions{
 		Templates: fakeTemplates(),
 		EnableSDD: true,
 	}
 
-	if err := syncProjectRules(tmp, opts); err != nil {
-		t.Fatalf("syncProjectRules: %v", err)
+	if err := Sync(projectDir, opts); err != nil {
+		t.Fatalf("Sync failed: %v", err)
 	}
 
-	geminiMD, err := os.ReadFile(filepath.Join(tmp, "GEMINI.md"))
+	// 1. Check project GEMINI.md
+	projectRulesPath := filepath.Join(projectDir, "GEMINI.md")
+	projectMD, err := os.ReadFile(projectRulesPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !strings.Contains(string(geminiMD), "<!-- BEGIN: system-general-ai/global-rules -->") {
-		t.Error("global-rules marker missing")
+	if !strings.Contains(string(projectMD), "<!-- BEGIN: system-general-ai/global-rules -->") {
+		t.Error("global-rules marker missing in project rules")
 	}
-	if !strings.Contains(string(geminiMD), "<!-- BEGIN: system-general-ai/sdd-orchestrator -->") {
-		t.Error("sdd-orchestrator marker missing")
-	}
-}
-
-func TestSync_Idempotency(t *testing.T) {
-	tmp := t.TempDir()
-	opts := SyncOptions{
-		Templates: fakeTemplates(),
-		EnableSDD: true,
+	if !strings.Contains(string(projectMD), "<!-- BEGIN: system-general-ai/sdd-orchestrator -->") {
+		t.Error("sdd-orchestrator marker missing in project rules")
 	}
 
-	if err := syncProjectRules(tmp, opts); err != nil {
-		t.Fatal(err)
+	// 2. Check global rules
+	globalRulesPath := filepath.Join(home, ".gemini", "GEMINI.md")
+	if _, err := os.Stat(globalRulesPath); os.IsNotExist(err) {
+		t.Errorf("global GEMINI.md not created at %s", globalRulesPath)
 	}
-	first, _ := os.ReadFile(filepath.Join(tmp, "GEMINI.md"))
 
-	if err := syncProjectRules(tmp, opts); err != nil {
-		t.Fatal(err)
+	// 3. Sync with persona
+	opts.Persona = "Test Persona"
+	if err := Sync(projectDir, opts); err != nil {
+		t.Fatalf("Sync with persona failed: %v", err)
 	}
-	second, _ := os.ReadFile(filepath.Join(tmp, "GEMINI.md"))
 
-	if string(first) != string(second) {
-		t.Error("syncProjectRules not idempotent")
+	// Check persona in project rules
+	content, _ := os.ReadFile(projectRulesPath)
+	if !strings.Contains(string(content), "## Persona") || !strings.Contains(string(content), "Test Persona") {
+		t.Errorf("Persona section missing or incorrect in project rules: %s", string(content))
+	}
+
+	// Check persona in global rules
+	globalContent, _ := os.ReadFile(globalRulesPath)
+	if !strings.Contains(string(globalContent), "## Persona") || !strings.Contains(string(globalContent), "Test Persona") {
+		t.Errorf("Persona section missing or incorrect in global rules")
+	}
+
+	// 4. Sync with neutral persona (remove)
+	opts.Persona = ""
+	if err := Sync(projectDir, opts); err != nil {
+		t.Fatalf("Sync with neutral persona failed: %v", err)
+	}
+	content, _ = os.ReadFile(projectRulesPath)
+	if strings.Contains(string(content), "## Persona") {
+		t.Errorf("Persona section should have been removed")
 	}
 }
 

@@ -104,8 +104,9 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 			}
 			
 			syncOpts := gemini.SyncOptions{
-				Templates: templates,
-				EnableSDD: true,
+				Templates:    templates,
+				EnableSDD:    true,
+				EngramBinary: filepath.Join(defaultBinDir(), engramBinaryName()),
 			}
 			
 			if err := gemini.Sync(cwd, syncOpts); err != nil {
@@ -117,6 +118,13 @@ func runInstall(cmd *cobra.Command, _ []string) error {
 
 	fmt.Fprintf(out, "\nDone. Restart Claude Code to apply.\n")
 	return nil
+}
+
+func engramBinaryName() string {
+	if runtime.GOOS == "windows" {
+		return "engram.exe"
+	}
+	return "engram"
 }
 
 // defaultBinDir returns the user-level bin directory we install engram into.
