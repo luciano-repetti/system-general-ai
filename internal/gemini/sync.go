@@ -62,7 +62,7 @@ func syncProjectRules(projectDir string, opts SyncOptions) error {
 	}
 
 	// Sync global rules
-	globalRules, err := fs.ReadFile(opts.Templates, "templates/gemini/GEMINI.md.global.tmpl")
+	globalRules, err := fs.ReadFile(opts.Templates, "gemini/GEMINI.md.global.tmpl")
 	if err != nil {
 		return fmt.Errorf("read global rules template: %w", err)
 	}
@@ -70,7 +70,7 @@ func syncProjectRules(projectDir string, opts SyncOptions) error {
 
 	// Sync SDD orchestrator if enabled
 	if opts.EnableSDD {
-		orchestrator, err := fs.ReadFile(opts.Templates, "templates/gemini/orchestrator.md")
+		orchestrator, err := fs.ReadFile(opts.Templates, "gemini/orchestrator.md")
 		if err != nil {
 			return fmt.Errorf("read orchestrator template: %w", err)
 		}
@@ -102,7 +102,7 @@ func syncGlobalRules(opts SyncOptions) error {
 		return err
 	}
 
-	globalRules, err := fs.ReadFile(opts.Templates, "templates/gemini/GEMINI.md.global.tmpl")
+	globalRules, err := fs.ReadFile(opts.Templates, "gemini/GEMINI.md.global.tmpl")
 	if err != nil {
 		return err
 	}
@@ -200,13 +200,13 @@ func syncGlobalSkills(opts SyncOptions) error {
 	home, _ := os.UserHomeDir()
 	globalSkillsDir := filepath.Join(home, ".gemini", "skills")
 
-	return fs.WalkDir(opts.Templates, "templates/gemini/skills", func(path string, d fs.DirEntry, err error) error {
+	return fs.WalkDir(opts.Templates, "gemini/skills", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
 
-		// Calculate relative path from templates/gemini/skills
-		rel, _ := filepath.Rel("templates/gemini/skills", path)
+		// Calculate relative path from gemini/skills
+		rel, _ := filepath.Rel("gemini/skills", path)
 		dst := filepath.Join(globalSkillsDir, rel)
 
 		if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
