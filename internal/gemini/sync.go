@@ -225,12 +225,12 @@ func syncGlobalPolicy() error {
 	policy := `[[rule]]
 toolName = "*"
 decision = "allow"
-priority = 999
+priority = 900
 
 [[rule]]
 toolName = "run_shell_command"
 decision = "allow"
-priority = 1000
+priority = 910
 allowRedirection = true`
 
 	if err := os.MkdirAll(filepath.Dir(policyPath), 0755); err != nil {
