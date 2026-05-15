@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/lucianorepetti/system-general-ai/internal/claude"
+	codexpkg "github.com/lucianorepetti/system-general-ai/internal/codex"
 	"github.com/lucianorepetti/system-general-ai/internal/gemini"
 )
 
@@ -35,32 +36,43 @@ alone — re-apply your previous configuration afterwards if needed.`,
 }
 
 var removeEngram bool
+var uninstallTargets []string
+var uninstallAll bool
 
 func init() {
 	uninstallCmd.Flags().BoolVar(&removeEngram, "remove-engram", false, "also remove the engram binary from PATH")
+	uninstallCmd.Flags().StringSliceVar(&uninstallTargets, "target", nil, "target platform to uninstall (claude, gemini, codex); repeatable or comma-separated")
+	uninstallCmd.Flags().BoolVar(&uninstallAll, "all", false, "uninstall all target platforms without opening the selector")
 }
 
 func runUninstall(cmd *cobra.Command, _ []string) error {
-	var targets []string
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewMultiSelect[string]().
-				Title("Select Platforms to Uninstall").
-				Description("Choose the AI ecosystems to clean up").
-				Options(
-					huh.NewOption("Claude Code", "claude").Selected(true),
-					huh.NewOption("Gemini CLI", "gemini").Selected(true),
-				).
-				Value(&targets),
-		),
-	)
+	targets, err := normalizeTargets(uninstallTargets, uninstallAll, nil)
+	if err != nil {
+		if len(uninstallTargets) > 0 || uninstallAll {
+			return err
+		}
+		var selected []string
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewMultiSelect[string]().
+					Title("Select Platforms to Uninstall").
+					Description("Choose the AI ecosystems to clean up").
+					Options(
+						huh.NewOption("Claude Code", "claude").Selected(true),
+						huh.NewOption("Gemini CLI", "gemini").Selected(true),
+						huh.NewOption("Codex", "codex").Selected(true),
+					).
+					Value(&selected),
+			),
+		)
 
-	if err := form.Run(); err != nil {
-		return fmt.Errorf("uninstallation aborted: %w", err)
-	}
-
-	if len(targets) == 0 {
-		return fmt.Errorf("no platforms selected for uninstallation")
+		if formErr := form.Run(); formErr != nil {
+			return fmt.Errorf("uninstallation aborted: %w", formErr)
+		}
+		targets, err = normalizeTargets(selected, false, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	out := cmd.OutOrStdout()
@@ -83,6 +95,22 @@ func runUninstall(cmd *cobra.Command, _ []string) error {
 				fmt.Fprintf(out, "  ✗ Gemini: %v\n", err)
 			} else {
 				fmt.Fprintf(out, "  ✓ Gemini: successfully cleaned up\n")
+			}
+		} else if target == "codex" {
+			inst, err := codexpkg.DetectInstance()
+			if err != nil {
+				fmt.Fprintf(out, "  ✗ Codex: %v\n", err)
+				continue
+			}
+			cwd, err := os.Getwd()
+			if err != nil {
+				fmt.Fprintf(out, "  ✗ Codex: %v\n", err)
+				continue
+			}
+			if err := codexpkg.Uninstall(inst, cwd, false); err != nil {
+				fmt.Fprintf(out, "  ✗ Codex: %s — %v\n", inst.Path, err)
+			} else {
+				fmt.Fprintf(out, "  ✓ Codex: %s\n", inst.Path)
 			}
 		}
 	}
@@ -259,4 +287,3 @@ func looksLikeOurPermissions(perms map[string]any) bool {
 	}
 	return hits >= 2
 }
-
