@@ -32,6 +32,7 @@ mpath() {
 
 info "Building binary ..."
 go build -o /tmp/sgai-test ./cmd/system-general-ai
+SGAI=/tmp/sgai-test
 ok "build succeeded"
 
 TEST_DIR="$(mktemp -d)"
@@ -39,7 +40,7 @@ trap 'rm -rf "$TEST_DIR"' EXIT
 info "Test instance: $TEST_DIR"
 
 info "Running zero-config install ..."
-CLAUDE_CONFIG_DIR="$TEST_DIR" /tmp/sgai-test install
+CLAUDE_CONFIG_DIR="$TEST_DIR" "$SGAI" install --target claude
 ok "install completed"
 
 info "Verifying produced files ..."
@@ -72,13 +73,13 @@ ok "all 11 skills installed (directory format)"
 
 info "Running idempotency check (re-install) ..."
 SUM_BEFORE="$(find "$TEST_DIR" -type f -exec sha256sum {} \; | sort)"
-CLAUDE_CONFIG_DIR="$TEST_DIR" /tmp/sgai-test install >/dev/null
+CLAUDE_CONFIG_DIR="$TEST_DIR" "$SGAI" install --target claude >/dev/null
 SUM_AFTER="$(find "$TEST_DIR" -type f -exec sha256sum {} \; | sort)"
 [ "$SUM_BEFORE" = "$SUM_AFTER" ] || fail "second install produced different output"
 ok "idempotent (re-running install yields same files)"
 
 info "Running configure permissions strict ..."
-CLAUDE_CONFIG_DIR="$TEST_DIR" /tmp/sgai-test configure permissions strict >/dev/null
+CLAUDE_CONFIG_DIR="$TEST_DIR" "$SGAI" configure permissions strict >/dev/null
 "$PY" -c "import json; j=json.load(open(r'$TEST_SETTINGS_PY'));
 ask=set(j['permissions'].get('ask',[]));
 assert 'Edit' in ask and 'Write' in ask, 'strict mode did not move Edit/Write to ask'" \
@@ -86,14 +87,14 @@ assert 'Edit' in ask and 'Write' in ask, 'strict mode did not move Edit/Write to
 ok "configure permissions strict applied"
 
 info "Running configure persona neutral (fix #204 regression) ..."
-CLAUDE_CONFIG_DIR="$TEST_DIR" /tmp/sgai-test configure persona neutral >/dev/null
+CLAUDE_CONFIG_DIR="$TEST_DIR" "$SGAI" configure persona neutral --target claude >/dev/null
 "$PY" -c "import json; j=json.load(open(r'$TEST_SETTINGS_PY'));
 assert 'outputStyle' not in j, 'outputStyle was NOT removed (fix #204 broken)'" \
   || fail "fix #204 regression — outputStyle key persisted"
 ok "fix #204 verified — neutral removes outputStyle key"
 
 info "Running uninstall ..."
-CLAUDE_CONFIG_DIR="$TEST_DIR" /tmp/sgai-test uninstall >/dev/null
+CLAUDE_CONFIG_DIR="$TEST_DIR" "$SGAI" uninstall --target claude >/dev/null
 [ ! -f "$TEST_DIR/output-styles/system-general-ai.md" ] || fail "output-style not removed"
 [ ! -f "$TEST_DIR/skills/sdd-init/SKILL.md" ] || fail "skills/sdd-init/SKILL.md not removed"
 ok "uninstall removed managed files"
@@ -137,7 +138,7 @@ USER_SKILL_CONTENT="# user's custom sdd-init — must not be silently overwritte
 printf '%s\n' "$USER_SKILL_CONTENT" > "$MERGE_DIR/skills/sdd-init/SKILL.md"
 
 # 3. Run install against the seeded tempdir.
-CLAUDE_CONFIG_DIR="$MERGE_DIR" /tmp/sgai-test install >/dev/null
+CLAUDE_CONFIG_DIR="$MERGE_DIR" "$SGAI" install --target claude >/dev/null
 
 # 4. Assert post-install state.
 MERGE_SETTINGS_PY="$(mpath "$MERGE_DIR/settings.json")"
@@ -199,10 +200,56 @@ ok "merge regression: user permissions + theme + skill all preserved, template m
 
 # Idempotency check on the merged result (re-install must not change anything).
 SUM_BEFORE_MERGE="$(find "$MERGE_DIR" -type f -exec sha256sum {} \; | sort)"
-CLAUDE_CONFIG_DIR="$MERGE_DIR" /tmp/sgai-test install >/dev/null
+CLAUDE_CONFIG_DIR="$MERGE_DIR" "$SGAI" install --target claude >/dev/null
 SUM_AFTER_MERGE="$(find "$MERGE_DIR" -type f -exec sha256sum {} \; | sort)"
 [ "$SUM_BEFORE_MERGE" = "$SUM_AFTER_MERGE" ] || fail "merge install not idempotent"
 ok "merge install is idempotent (deterministic union order)"
+
+# ---------------------------------------------------------------------------
+# Codex isolated smoke test. Uses CODEX_HOME and a temp project directory so it
+# never touches the user's real ~/.codex or this repo's AGENTS.md.
+# ---------------------------------------------------------------------------
+info ""
+info "Running Codex sync smoke test ..."
+
+CODEX_HOME_DIR="$(mktemp -d)"
+CODEX_PROJECT_DIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_DIR" "$MERGE_DIR" "$CODEX_HOME_DIR" "$CODEX_PROJECT_DIR"' EXIT
+
+( cd "$CODEX_PROJECT_DIR" && CODEX_HOME="$CODEX_HOME_DIR" "$SGAI" sync codex >/dev/null )
+
+[ -f "$CODEX_HOME_DIR/AGENTS.md" ] || fail "Codex global AGENTS.md missing"
+grep -q "<!-- BEGIN: system-general-ai/global-rules -->" "$CODEX_HOME_DIR/AGENTS.md" \
+  || fail "Codex global-rules marker missing"
+grep -q "<!-- BEGIN: system-general-ai/sdd-orchestrator -->" "$CODEX_HOME_DIR/AGENTS.md" \
+  || fail "Codex sdd-orchestrator marker missing"
+ok "Codex global AGENTS.md has marker sections"
+
+[ -f "$CODEX_PROJECT_DIR/AGENTS.md" ] || fail "Codex project AGENTS.md missing"
+grep -q "<!-- BEGIN: system-general-ai/project-rules -->" "$CODEX_PROJECT_DIR/AGENTS.md" \
+  || fail "Codex project-rules marker missing"
+ok "Codex project AGENTS.md has marker section"
+
+[ -f "$CODEX_HOME_DIR/config.toml" ] || fail "Codex config.toml missing"
+grep -q "\[mcp_servers.engram\]" "$CODEX_HOME_DIR/config.toml" \
+  || fail "Codex engram MCP block missing"
+grep -q "model_instructions_file" "$CODEX_HOME_DIR/config.toml" \
+  || fail "Codex model_instructions_file missing"
+grep -q "experimental_compact_prompt_file" "$CODEX_HOME_DIR/config.toml" \
+  || fail "Codex compact prompt file missing"
+ok "Codex config.toml has Engram MCP + instruction files"
+
+for skill in sdd-init sdd-explore sdd-propose sdd-spec sdd-design \
+             sdd-tasks sdd-apply sdd-verify sdd-archive \
+             shell-runner compact-suggest; do
+    [ -f "$CODEX_HOME_DIR/skills/$skill/SKILL.md" ] || fail "Codex skill $skill/SKILL.md missing"
+done
+ok "Codex skills installed"
+
+( cd "$CODEX_PROJECT_DIR" && CODEX_HOME="$CODEX_HOME_DIR" "$SGAI" uninstall --target codex >/dev/null )
+[ ! -f "$CODEX_HOME_DIR/skills/sdd-init/SKILL.md" ] || fail "Codex uninstall did not remove managed skill"
+grep -q "mcp_servers.engram" "$CODEX_HOME_DIR/config.toml" 2>/dev/null && fail "Codex uninstall did not remove MCP block"
+ok "Codex uninstall cleaned managed artifacts"
 
 info ""
 info "All smoke tests passed."

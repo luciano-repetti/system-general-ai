@@ -36,7 +36,11 @@ If the assigned model isn't available, sub-agents substitute `sonnet` and contin
 
 ## Skills shipped
 
-11 skills, installed as directories: `<instance>/skills/<name>/SKILL.md`.
+11 skills, installed as directories:
+
+- Claude Code: `<instance>/skills/<name>/SKILL.md`
+- Gemini CLI: `~/.gemini/skills/<name>/SKILL.md`
+- Codex: `~/.codex/skills/<name>/SKILL.md`
 
 | Skill | Purpose |
 |---|---|
@@ -54,7 +58,7 @@ If the assigned model isn't available, sub-agents substitute `sonnet` and contin
 
 ## Files sgai owns (manifest)
 
-What `install`/`sync` writes and what `uninstall` removes. Source: `internal/claude/sync.go`, `internal/cli/uninstall.go`.
+What `install`/`sync` writes and what `uninstall` removes. Source: `internal/claude/sync.go`, `internal/gemini/sync.go`, `internal/codex/sync.go`, `internal/cli/uninstall.go`.
 
 | Artifact | Path | Install behavior | Uninstall behavior |
 |---|---|---|---|
@@ -67,6 +71,18 @@ What `install`/`sync` writes and what `uninstall` removes. Source: `internal/cla
 | Skills | `<instance>/skills/<name>/SKILL.md` for each of the 11 names | Overwrites `SKILL.md` | Removes `SKILL.md`; removes the dir only if empty (preserves user-authored extras) |
 | Engram MCP entry | `<instance>/settings.json` `mcpServers.engram` | Set to `{command, args:["serve"], env:{}}` | Removed only if `command` path contains the sgai bin dir |
 | Engram binary | `~/.local/bin/engram` (POSIX) or `%LOCALAPPDATA%\system-general-ai\bin\engram.exe` (Windows) | Downloaded by `install` | Kept unless `--remove-engram` is passed |
+
+## Codex files sgai owns
+
+| Artifact | Path | Install behavior | Uninstall behavior |
+|---|---|---|---|
+| Global rules | `~/.codex/AGENTS.md` between `<!-- BEGIN: system-general-ai/... -->` markers | Merge in place; preserves user content outside markers | Managed marker blocks removed |
+| Project rules | `./AGENTS.md` between `<!-- BEGIN: system-general-ai/project-rules -->` markers | Merge in current project | Managed marker block removed |
+| Engram MCP | `~/.codex/config.toml` `[mcp_servers.engram]` | Upserts managed TOML block | Managed block removed |
+| Engram model instructions | `~/.codex/engram-instructions.md` | Overwrites with template | File removed |
+| Engram compact prompt | `~/.codex/engram-compact-prompt.md` | Overwrites with template | File removed |
+| Skills | `~/.codex/skills/<name>/SKILL.md` | Overwrites managed `SKILL.md` files | Removes managed `SKILL.md`; preserves user extras in the directory |
+| Backups | `~/.codex/backups/system-general-ai-*` | Created before modifying Codex config files | Left in place |
 
 ## Engram MCP entry
 
@@ -85,6 +101,26 @@ Written by `syncEngramMCP` (`internal/claude/sync.go:171`). Shape:
 ```
 
 Other entries under `mcpServers` are preserved.
+
+## Codex Engram MCP entry
+
+Written to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.engram]
+command = "/abs/path/to/engram"
+args = ["mcp", "--tools=agent"]
+enabled = true
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+```
+
+Top-level Codex instruction files are also set:
+
+```toml
+model_instructions_file = "~/.codex/engram-instructions.md"
+experimental_compact_prompt_file = "~/.codex/engram-compact-prompt.md"
+```
 
 ## Multi-Claude detection rules
 

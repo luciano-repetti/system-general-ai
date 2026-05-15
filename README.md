@@ -1,6 +1,6 @@
 # system-general-ai
 
-A focused, minimal AI ecosystem configurator **for Claude Code and Gemini CLI**.
+A focused, minimal AI ecosystem configurator **for Claude Code, Gemini CLI, and Codex**.
 
 ## What it does
 
@@ -11,13 +11,13 @@ A focused, minimal AI ecosystem configurator **for Claude Code and Gemini CLI**.
 - **Engram** persistent memory across sessions
 - A **`shell-runner`** sub-agent that absorbs large command outputs (test runs, builds, log dumps) so they never inflate the main context
 - A **`compact-suggest`** skill that nudges the user to run `/compact` when the conversation accumulates
-- **Multi-Platform support** — Install for Claude Code, Gemini CLI, or both via an interactive TUI.
+- **Multi-Platform support** — Install for Claude Code, Gemini CLI, Codex, or any combination via an interactive TUI or non-interactive flags.
 - **Three permission profiles** (permissive default, balanced, strict) — one flag to switch
 - A **single-command zero-config installer** for Windows, macOS, and Linux
 
 ## Why
 
-If you use Claude Code or Gemini CLI daily and want the productivity layer without:
+If you use Claude Code, Gemini CLI, or Codex daily and want the productivity layer without:
 
 - A chatty pedagogical persona that adds tokens to every turn
 - An installer that requires cloning a repo, aliasing binaries, and migrating configs across multiple credentials
@@ -54,10 +54,12 @@ Total time: under a minute, no admin rights needed.
 
 ```text
 system-general-ai install
-system-general-ai sync
+system-general-ai install --target codex
+system-general-ai install --all
+system-general-ai sync [claude|gemini|codex...]
 system-general-ai configure permissions <permissive|balanced|strict>
-system-general-ai configure persona <name|"-"|"neutral">
-system-general-ai uninstall [--remove-engram]
+system-general-ai configure persona <name|"-"|"neutral"> [--target claude|gemini|codex]
+system-general-ai uninstall [--target claude|gemini|codex] [--remove-engram]
 system-general-ai --version
 ```
 
@@ -74,6 +76,8 @@ system-general-ai --version
 | Engram | Installed and wired | Persistent memory across sessions |
 | Output style | `system-general-ai` | Custom direct-and-technical persona |
 | Gemini Policy | `permissive` | YOLO mode with auto-approval for shell commands |
+| Codex SDD | ON | Always-on SDD via `AGENTS.md` + skills |
+| Codex Engram | ON | MCP + instruction/compact prompt files |
 
 Reconfigure any of them post-install with `system-general-ai configure ...` — never required.
 
@@ -84,6 +88,7 @@ cmd/system-general-ai/       Binary entry point
 internal/cli/                Cobra commands (install, sync, configure, uninstall)
 internal/claude/             Claude Code detection + sync
 internal/gemini/             Gemini CLI sync logic
+internal/codex/              Codex detection + sync
 internal/engram/             Engram binary download + MCP config generation
 templates/                   Embedded into the binary at build time
 scripts/                     Bootstrap install scripts (bash + PowerShell)
@@ -112,7 +117,7 @@ For cross-platform builds:
 
 ```bash
 go test ./internal/...     # unit tests
-./scripts/test-smoke.sh    # E2E in an isolated tempdir, never touches your real ~/.claude
+./scripts/test-smoke.sh    # E2E in isolated tempdirs, never touches real ~/.claude or ~/.codex
 ./scripts/test-build.sh    # cross-platform compile check
 ```
 
