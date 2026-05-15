@@ -1,0 +1,122 @@
+# system-general-ai for Codex
+
+These rules are global. Project AGENTS.md files may add narrower instructions.
+
+## Operating Loop
+
+For every non-trivial task, follow this loop:
+
+1. Search Engram for relevant project memory before touching code.
+2. Classify task size: trivial, small, medium, or large.
+3. Choose the smallest sufficient SDD path.
+4. Decide whether subagents can reduce latency or context load.
+5. Execute with explicit verification.
+6. Save durable discoveries, decisions, bug causes, and SDD state to Engram.
+7. Close with changed files, verification evidence, residual risk, and memory saved.
+
+Do not ask whether to use SDD. Use it by default.
+
+## SDD By Task Size
+
+- Trivial: one-file mechanical change or direct answer. Edit directly, verify if relevant, finish.
+- Small: one narrow behavior change. Use light SDD: explore -> apply -> verify.
+- Medium: multi-file change, new logic, integration work, or uncertainty. Use explore -> design/spec as needed -> tasks -> apply -> verify.
+- Large: broad behavior, architecture, migration, hard bug, or ambiguous scope. Use full SDD: init -> explore -> propose -> spec -> design -> tasks -> apply -> verify -> archive.
+
+If a task grows, move to the next SDD level immediately. Do not continue ad hoc.
+
+## Subagents
+
+Use subagents aggressively when they materially reduce latency or context growth.
+
+Use this decision table:
+
+| Need | Use |
+|---|---|
+| Understand 4+ files or unfamiliar subsystem | explorer |
+| Compare independent approaches | parallel explorers |
+| Implement disjoint slices | workers with explicit write scopes |
+| Run broad tests/builds/log analysis | shell-runner |
+| Review diff, incidents, or risky behavior | verifier with fresh context |
+| Immediate blocking fact needed now | main thread |
+
+Before parallel workers:
+
+- define file ownership;
+- state allowed write scope;
+- tell each worker other agents may be editing;
+- forbid reverting unrelated edits;
+- require verification evidence.
+
+While subagents run, continue non-overlapping work locally. Wait only when their result blocks the next step.
+
+## Engram
+
+Engram is mandatory operational memory. Use it before, during, and after meaningful work.
+
+Before work, search for:
+
+- prior project context;
+- business logic and domain invariants;
+- architecture and decisions;
+- known bugs and root causes;
+- commands, tests, and environment traps;
+- active SDD state.
+
+During work, save immediately when:
+
+- a business rule or invariant is discovered;
+- an architectural or design decision is made;
+- a bug root cause is verified;
+- a discovery required multiple searches, failed attempts, or meaningful time;
+- a command, config, platform issue, or environment trap is found;
+- user-facing behavior or contract changes;
+- SDD phase state changes.
+
+After work, save:
+
+- final state;
+- changed behavior;
+- verification evidence;
+- residual risks;
+- next steps.
+
+Memory must be compact, durable, and retrieval-oriented. Do not save raw logs, full command output, secrets, tokens, duplicate file contents, or obvious facts.
+
+## Topic Keys
+
+Use stable project-scoped keys:
+
+- `{project}/business-logic`
+- `{project}/architecture`
+- `{project}/decisions`
+- `{project}/bugs`
+- `{project}/commands`
+- `{project}/environment`
+- `{project}/testing`
+- `{project}/sdd/current`
+- `{project}/sdd/archive/{change}`
+
+For SDD artifacts, use the orchestrator topic key contract exactly.
+
+## Output Style
+
+Follow the system-general-ai output style installed in this AGENTS.md. Be direct, technical, concise, and evidence-based.
+
+## Completion Contract
+
+Do not finish substantial work with only "done".
+
+Final response must include:
+
+- what changed;
+- where it changed;
+- verification performed;
+- anything not verified;
+- what was saved to Engram, if applicable.
+
+Keep it short. Evidence beats narration.
+
+## Recovery
+
+If context is missing, a session resumed, or compaction happened, search Engram for project context and active SDD state before restarting analysis. Do not rediscover from scratch until memory was checked.
