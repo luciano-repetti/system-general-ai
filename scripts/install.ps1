@@ -1,7 +1,7 @@
 # system-general-ai bootstrap — Windows (PowerShell 5.1+)
 #
 # Usage:
-#   irm https://raw.githubusercontent.com/lucianorepetti/system-general-ai/main/scripts/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/luciano-repetti/system-general-ai/main/scripts/install.ps1 | iex
 #
 # This script:
 #   1. Detects architecture
@@ -12,7 +12,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$Repo      = 'lucianorepetti/system-general-ai'
+$Repo      = 'luciano-repetti/system-general-ai'
 $BinName   = 'system-general-ai'
 $TargetDir = Join-Path $env:LOCALAPPDATA 'system-general-ai\bin'
 
@@ -84,5 +84,5 @@ Write-Info 'Running zero-config install ...'
 & (Join-Path $TargetDir "$BinName.exe") install
 if ($LASTEXITCODE -ne 0) { Fail 'system-general-ai install failed.' }
 
-Write-Ok 'Done. Restart Claude Code to apply.'
+Write-Ok 'Done. Restart the selected AI tool(s) to apply.'
 

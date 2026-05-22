@@ -107,8 +107,13 @@ func TestSyncIsIdempotentForManagedSections(t *testing.T) {
 	if err := Sync(inst, opts); err != nil {
 		t.Fatal(err)
 	}
+	backupsAfterFirst := countBackupFiles(t, filepath.Join(inst.Path, "backups"))
 	if err := Sync(inst, opts); err != nil {
 		t.Fatal(err)
+	}
+	backupsAfterSecond := countBackupFiles(t, filepath.Join(inst.Path, "backups"))
+	if backupsAfterSecond != backupsAfterFirst {
+		t.Fatalf("second sync created backup without content change: before=%d after=%d", backupsAfterFirst, backupsAfterSecond)
 	}
 
 	global := mustRead(t, inst.AGENTSPath())
@@ -118,6 +123,95 @@ func TestSyncIsIdempotentForManagedSections(t *testing.T) {
 	cfg := mustRead(t, inst.ConfigPath())
 	if got := strings.Count(cfg, "[mcp_servers.engram]"); got != 1 {
 		t.Fatalf("engram block count = %d; content:\n%s", got, cfg)
+	}
+}
+
+func TestSyncConfigOnlyMutatesManagedTopLevelKeys(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "project")
+	inst := Instance{Path: filepath.Join(root, ".codex")}
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(inst.Path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	existing := `# user comment
+model = "gpt-5.5"
+experimental_compact_prompt_file = "old-global.md"
+
+[projects.'C:\repo\one']
+model_instructions_file = "project-local.md"
+trust_level = "trusted"
+
+[mcp_servers.docs]
+command = "docs-server"
+args = ["serve"]
+`
+	if err := os.WriteFile(inst.ConfigPath(), []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Sync(inst, SyncOptions{
+		Templates:    testTemplates(),
+		ProjectDir:   project,
+		EnableSDD:    true,
+		EngramBinary: `C:\bin\engram.exe`,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := mustRead(t, inst.ConfigPath())
+	for _, want := range []string{
+		`# user comment`,
+		`model = "gpt-5.5"`,
+		`[projects.'C:\repo\one']`,
+		`model_instructions_file = "project-local.md"`,
+		`[mcp_servers.docs]`,
+		`command = "docs-server"`,
+		`[mcp_servers.engram]`,
+		`command = "C:\\bin\\engram.exe"`,
+	} {
+		if !strings.Contains(cfg, want) {
+			t.Fatalf("config missing preserved/generated entry %q:\n%s", want, cfg)
+		}
+	}
+	if got := strings.Count(cfg, `experimental_compact_prompt_file = `); got != 1 {
+		t.Fatalf("managed top-level compact prompt count = %d:\n%s", got, cfg)
+	}
+}
+
+func TestSyncRejectsInvalidExistingConfig(t *testing.T) {
+	root := t.TempDir()
+	project := filepath.Join(root, "project")
+	inst := Instance{Path: filepath.Join(root, ".codex")}
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(inst.Path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(inst.ConfigPath(), []byte("this is not valid = [toml"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := Sync(inst, SyncOptions{
+		Templates:    testTemplates(),
+		ProjectDir:   project,
+		EnableSDD:    true,
+		EngramBinary: "engram",
+	})
+	if err == nil || !strings.Contains(err.Error(), "invalid TOML") {
+		t.Fatalf("expected invalid TOML error, got %v", err)
+	}
+	if got := mustRead(t, inst.ConfigPath()); got != "this is not valid = [toml" {
+		t.Fatalf("invalid config was modified:\n%s", got)
+	}
+	if _, statErr := os.Stat(inst.AGENTSPath()); !os.IsNotExist(statErr) {
+		t.Fatalf("global AGENTS should not be written after invalid config, stat err=%v", statErr)
+	}
+	if _, statErr := os.Stat(filepath.Join(project, "AGENTS.md")); !os.IsNotExist(statErr) {
+		t.Fatalf("project AGENTS should not be written after invalid config, stat err=%v", statErr)
 	}
 }
 
@@ -158,6 +252,27 @@ func TestUninstallRemovesOnlyManagedCodexArtifacts(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(inst.SkillsDir(), "sdd-init", "SKILL.md")); !os.IsNotExist(err) {
 		t.Fatalf("managed SKILL.md should be removed, err=%v", err)
 	}
+}
+
+func countBackupFiles(t *testing.T, root string) int {
+	t.Helper()
+	count := 0
+	err := filepath.WalkDir(root, func(_ string, d os.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if !d.IsDir() {
+			count++
+		}
+		return nil
+	})
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	return count
 }
 
 func mustRead(t *testing.T, path string) string {

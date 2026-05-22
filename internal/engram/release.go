@@ -78,4 +78,3 @@ func matchesPlatform(assetName, os, arch string) bool {
 	}
 	return true
 }
-

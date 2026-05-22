@@ -7,13 +7,13 @@ Install `system-general-ai`, get your AI terminal (Claude Code, Gemini CLI, or C
 ### Linux / macOS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lucianorepetti/system-general-ai/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/luciano-repetti/system-general-ai/main/scripts/install.sh | bash
 ```
 
 ### Windows (PowerShell 5.1+)
 
 ```powershell
-irm https://raw.githubusercontent.com/lucianorepetti/system-general-ai/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/luciano-repetti/system-general-ai/main/scripts/install.ps1 | iex
 ```
 
 The bootstrap detects OS + arch, places the binary under your user-level PATH (`~/.local/bin` on POSIX, `%LOCALAPPDATA%\system-general-ai\bin` on Windows), creates the `sgai` short alias, and runs `system-general-ai install` automatically.
@@ -33,6 +33,13 @@ sgai install --target claude,gemini,codex
 sgai install --all
 ```
 
+If you are developing from source instead of installing a release, build the local binary first and use `sync` after template changes:
+
+```bash
+go build -o sgai ./cmd/system-general-ai
+./sgai sync codex
+```
+
 ## What `install` does in 30 seconds
 
 1. **Platform Selection**: You choose Claude, Gemini, Codex, or any combination.
@@ -47,7 +54,7 @@ sgai install --all
    - Deploys 11 skills to `~/.gemini/skills/`.
    - Creates a `permissive.toml` policy for 100% auto-approval.
 5. **Codex Sync** (if selected):
-   - Injects global rules, output style, and SDD orchestrator into `~/.codex/AGENTS.md`.
+   - Injects global rules, output style, and the Codex SDD orchestrator into `~/.codex/AGENTS.md`.
    - Injects project rules into `./AGENTS.md`.
    - Deploys skills to `~/.codex/skills/`.
    - Wires Engram in `~/.codex/config.toml`.
@@ -60,6 +67,7 @@ sgai install                                   # one-time, interactive
 sgai install --target codex                    # one-time, non-interactive Codex install
 sgai sync                                      # re-apply all targets after upgrade
 sgai sync codex                                # re-apply only Codex
+sgai sync claude gemini codex                  # re-apply explicit targets
 sgai configure permissions <permissive|balanced|strict>
 sgai configure persona <name>                  # switch persona/output style on all targets
 sgai configure persona neutral --target codex  # switch only Codex
@@ -96,6 +104,8 @@ sgai --version
 | Engram MCP | `~/.codex/config.toml` contains `[mcp_servers.engram]` |
 | Engram instructions | `~/.codex/engram-instructions.md` |
 | Compact prompt | `~/.codex/engram-compact-prompt.md` |
+
+Codex project rules are written to the current working directory. Run `sgai install --target codex` or `sgai sync codex` from the project you want to receive `./AGENTS.md`.
 
 ## Restart your AI
 

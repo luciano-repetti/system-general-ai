@@ -72,9 +72,15 @@ func cleanConfig(path string) error {
 	if err != nil {
 		return err
 	}
+	if err := validateTOML(content); err != nil {
+		return fmt.Errorf("existing config.toml is invalid TOML: %w", err)
+	}
 	updated := removeCodexEngramBlock(content)
 	updated = removeTopLevelTOMLKey(updated, "model_instructions_file")
 	updated = removeTopLevelTOMLKey(updated, "experimental_compact_prompt_file")
+	if err := validateTOML(updated); err != nil {
+		return fmt.Errorf("cleaned config.toml is invalid TOML: %w", err)
+	}
 	if updated == content {
 		return nil
 	}

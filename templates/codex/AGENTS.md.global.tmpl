@@ -4,36 +4,36 @@ These rules are global. Project AGENTS.md files may add narrower instructions.
 
 ## Operating Loop
 
-For every non-trivial task, follow this loop:
+For every non-trivial coding or repository task, follow this loop. For direct answers, explanations, or one-off file lookups, answer directly after verifying what is needed.
 
 1. Search Engram for relevant project memory before touching code.
 2. Classify task size: trivial, small, medium, or large.
 3. Choose the smallest sufficient SDD path.
-4. Decide whether subagents can reduce latency or context load.
+4. Decide whether subagents or skills can reduce latency or context load.
 5. Execute with explicit verification.
 6. Save durable discoveries, decisions, bug causes, and SDD state to Engram.
 7. Close with changed files, verification evidence, residual risk, and memory saved.
 
-Do not ask whether to use SDD. Use it by default.
+Do not ask whether to use SDD. Use the smallest path that fits the task, and skip phase ceremony when it would add no evidence.
 
 ## SDD By Task Size
 
-- Trivial: one-file mechanical change or direct answer. Edit directly, verify if relevant, finish.
-- Small: one narrow behavior change. Use light SDD: explore -> apply -> verify.
-- Medium: multi-file change, new logic, integration work, or uncertainty. Use explore -> design/spec as needed -> tasks -> apply -> verify.
+- Trivial: direct answer, local lookup, or one-file mechanical change. Edit directly, verify if relevant, finish.
+- Small: one narrow behavior change. Use light SDD: focused explore -> apply -> verify.
+- Medium: multi-file change, new logic, integration work, or uncertainty. Use focused explore -> design/spec only if needed -> tasks -> apply -> verify.
 - Large: broad behavior, architecture, migration, hard bug, or ambiguous scope. Use full SDD: init -> explore -> propose -> spec -> design -> tasks -> apply -> verify -> archive.
 
 If a task grows, move to the next SDD level immediately. Do not continue ad hoc.
 
 ## Subagents
 
-Use subagents aggressively when they materially reduce latency or context growth.
+Use subagents when they materially reduce latency or context growth. Do not spawn subagents for work that is faster and safer in the main thread.
 
 Use this decision table:
 
 | Need | Use |
 |---|---|
-| Understand 4+ files or unfamiliar subsystem | explorer |
+| Understand 4+ files or unfamiliar subsystem | explorer, if available |
 | Compare independent approaches | parallel explorers |
 | Implement disjoint slices | workers with explicit write scopes |
 | Run broad tests/builds/log analysis | shell-runner |
@@ -48,13 +48,13 @@ Before parallel workers:
 - forbid reverting unrelated edits;
 - require verification evidence.
 
-While subagents run, continue non-overlapping work locally. Wait only when their result blocks the next step.
+If the required subagent tool is unavailable, continue in the main thread and keep the context small. While subagents run, continue non-overlapping work locally. Wait only when their result blocks the next step.
 
 ## Engram
 
 Engram is mandatory operational memory. Use it before, during, and after meaningful work.
 
-Before work, search for:
+Before meaningful work, search for:
 
 - prior project context;
 - business logic and domain invariants;
@@ -63,7 +63,9 @@ Before work, search for:
 - commands, tests, and environment traps;
 - active SDD state.
 
-During work, save immediately when:
+If the exact project name is unknown in Engram, retry without an explicit project filter and use the detected project from the result.
+
+During work, save immediately when the information would help a future session avoid rediscovery:
 
 - a business rule or invariant is discovered;
 - an architectural or design decision is made;
@@ -73,7 +75,7 @@ During work, save immediately when:
 - user-facing behavior or contract changes;
 - SDD phase state changes.
 
-After work, save:
+After substantial work, save:
 
 - final state;
 - changed behavior;
@@ -105,7 +107,7 @@ Follow the system-general-ai output style installed in this AGENTS.md. Be direct
 
 ## Completion Contract
 
-Do not finish substantial work with only "done".
+Do not finish substantial work with only "done". For direct answers or no-file changes, keep the closeout minimal.
 
 Final response must include:
 

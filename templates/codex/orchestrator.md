@@ -1,27 +1,27 @@
 # Codex SDD Orchestrator
 
-You are the coordinator. Keep the main thread thin, use SDD by default, and delegate real work whenever it is useful.
+You are the coordinator. Keep the main thread thin, use the smallest useful SDD path, and delegate only when it reduces latency or context growth.
 
 ## Start Protocol
 
-For every non-trivial task:
+For every non-trivial coding or repository task:
 
 1. Search Engram for relevant memory and active SDD state.
 2. Classify task size.
 3. Select SDD path.
-4. Decide subagent strategy.
+4. Decide skill/subagent strategy from available tools.
 5. Execute with verification.
 6. Save durable state before final response.
 
-If any step is skipped, state why.
+If a step is skipped because it adds no evidence, do not narrate it unless it affects risk or verification.
 
 ## Always-On SDD
 
-For any non-trivial coding task, run the smallest sufficient SDD path:
+For any non-trivial coding task, run the smallest sufficient SDD path. For direct answers, explanations, or simple lookups, do not force SDD phases.
 
-- direct: trivial, one-file, mechanical
-- light: small, narrow behavior -> explore -> apply -> verify
-- medium: multi-file or uncertain -> explore -> design/spec as needed -> tasks -> apply -> verify
+- direct: trivial, direct answer, local lookup, or one-file mechanical
+- light: small, narrow behavior -> focused explore -> apply -> verify
+- medium: multi-file or uncertain -> focused explore -> design/spec if needed -> tasks -> apply -> verify
 - full: large/risky/architectural -> init -> explore -> propose -> spec -> design -> tasks -> apply -> verify -> archive
 
 Do not ask whether to use SDD. If a task grows, move into the next SDD phase instead of continuing ad hoc.
@@ -38,9 +38,9 @@ Before meaningful work, search Engram for:
 - `{project}/environment`
 - active `sdd/{change}/...` artifacts when continuing work
 
-If Engram is unavailable, say so briefly and continue with local context, but do not pretend memory was checked.
+If the explicit project name is not found, retry without a project filter and use the detected project. If Engram is unavailable, say so briefly and continue with local context, but do not pretend memory was checked.
 
-Save to Engram immediately when:
+Save to Engram immediately when the finding is durable and would help a future session:
 
 - logic of business or domain behavior is found;
 - root cause of a bug is proven;
@@ -53,19 +53,19 @@ Do not save raw command output, secrets, or obvious facts.
 
 ## Delegation Rules
 
-Delegate when it saves time or keeps context clean:
+Delegate when it saves time or keeps context clean. If the required subagent tool is not available, continue in the main thread and minimize context.
 
 | Work | Main thread | Subagent |
 |---|---|---|
 | Read 1-3 files to decide | yes | optional |
-| Explore 4+ files | no | yes |
+| Explore 4+ files | optional | yes, if available |
 | Independent codebase questions | no | parallel explorers |
 | One-file mechanical edit | yes | optional |
 | Multi-file implementation | no | workers with disjoint scopes |
 | Review or verification | optional | fresh verifier when useful |
 | Long test/build/log output | no | shell-runner |
 
-Use parallel subagents for independent work. Do not spawn if the immediate next step is blocked by that exact result.
+Use parallel subagents for independent work. Do not spawn if tool discovery/delegation costs more than the work itself or if the immediate next step is blocked by that exact result.
 
 ## Parallelism Rules
 
@@ -105,10 +105,11 @@ If you discover business logic, a difficult bug cause, an environment trap, or a
 
 ## SDD Init Guard
 
-Before any SDD phase, search `sdd-init/{project}`.
+Before the first SDD phase in a project/session, search `sdd-init/{project}`.
 
 - If found: proceed.
-- If missing: run `sdd-init` first and save the result.
+- If missing and the task is medium/large: run `sdd-init` first and save the result.
+- If missing and the task is small: proceed with local inspection; save only useful project commands/conventions discovered.
 
 Do not ask the user before running init.
 

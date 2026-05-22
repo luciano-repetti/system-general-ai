@@ -2,7 +2,7 @@
 # system-general-ai bootstrap — Linux / macOS
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/lucianorepetti/system-general-ai/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/luciano-repetti/system-general-ai/main/scripts/install.sh | bash
 #
 # This script:
 #   1. Detects OS + arch
@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-REPO="lucianorepetti/system-general-ai"
+REPO="luciano-repetti/system-general-ai"
 BIN_NAME="system-general-ai"
 TARGET_DIR="${HOME}/.local/bin"
 
@@ -87,7 +87,7 @@ main() {
   info "Running zero-config install ..."
   "${TARGET_DIR}/${BIN_NAME}" install || err "system-general-ai install failed."
 
-  ok "Done. Restart Claude Code to apply."
+  ok "Done. Restart the selected AI tool(s) to apply."
 }
 
 main "$@"

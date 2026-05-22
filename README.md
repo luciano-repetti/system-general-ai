@@ -31,13 +31,13 @@ If you use Claude Code, Gemini CLI, or Codex daily and want the productivity lay
 ### Linux / macOS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lucianorepetti/system-general-ai/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/luciano-repetti/system-general-ai/main/scripts/install.sh | bash
 ```
 
 ### Windows (PowerShell 5.1+)
 
 ```powershell
-irm https://raw.githubusercontent.com/lucianorepetti/system-general-ai/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/luciano-repetti/system-general-ai/main/scripts/install.ps1 | iex
 ```
 
 Both scripts:
@@ -65,18 +65,20 @@ system-general-ai --version
 
 `sgai` is interchangeable with `system-general-ai`.
 
+Use `install` for first-time setup. Use `sync` after upgrading `system-general-ai`, after editing templates from source, or after manual config changes you want to repair.
+
 ## Defaults applied at install
 
 | Setting | Default | Why |
 |---|---|---|
 | Permissions profile | `permissive` | Productivity-first, with destructive-command denylist |
-| SDD orchestrator | ON | Always available; the agent decides when to delegate |
+| SDD orchestrator | ON | Available by default; the agent uses the smallest useful SDD path |
 | `shell-runner` | ON | Cross-platform; saves tokens on every large command |
 | `compact-suggest` | ON | Surfaces `/compact` proactively when history grows |
 | Engram | Installed and wired | Persistent memory across sessions |
 | Output style | `system-general-ai` | Custom direct-and-technical persona |
 | Gemini Policy | `permissive` | YOLO mode with auto-approval for shell commands |
-| Codex SDD | ON | Always-on SDD via `AGENTS.md` + skills |
+| Codex SDD | ON | SDD via `AGENTS.md` + skills, relaxed for direct answers and trivial work |
 | Codex Engram | ON | MCP + instruction/compact prompt files |
 
 Reconfigure any of them post-install with `system-general-ai configure ...` — never required.
@@ -100,12 +102,47 @@ docs/                        Documentation
 Requires **Go 1.24+**.
 
 ```bash
-git clone https://github.com/lucianorepetti/system-general-ai
+git clone https://github.com/luciano-repetti/system-general-ai
 cd system-general-ai
 go mod tidy
 go build -o sgai ./cmd/system-general-ai
 ./sgai install
 ```
+
+## Development workflow
+
+Templates are embedded at build time from `templates/`. If you change prompts, skills, settings, or Codex/Gemini adapters:
+
+```bash
+go test ./internal/...
+go build -o sgai ./cmd/system-general-ai
+./sgai sync codex      # or: ./sgai sync claude gemini codex
+```
+
+Then restart the target AI tool. `sync` is idempotent and preserves user content outside managed marker blocks.
+
+## Release workflow
+
+The one-line installers download the latest GitHub Release. To publish a new version:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+GitHub Actions builds these assets automatically:
+
+```text
+system-general-ai_<tag>_windows_amd64.zip
+system-general-ai_<tag>_windows_arm64.zip
+system-general-ai_<tag>_linux_amd64.tar.gz
+system-general-ai_<tag>_linux_arm64.tar.gz
+system-general-ai_<tag>_darwin_amd64.tar.gz
+system-general-ai_<tag>_darwin_arm64.tar.gz
+checksums.txt
+```
+
+The Windows `irm ... | iex` installer expects the Windows `.zip` names above and `system-general-ai.exe` at the archive root.
 
 For cross-platform builds:
 

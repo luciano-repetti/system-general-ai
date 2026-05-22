@@ -3,6 +3,8 @@ package codex
 import (
 	"fmt"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 const (
@@ -121,31 +123,80 @@ func removeCodexEngramBlock(content string) string {
 }
 
 func upsertTopLevelTOMLString(content, key, value string) string {
+	return upsertTopLevelTOMLStrings(content, []tomlStringKV{{key: key, value: value}})
+}
+
+type tomlStringKV struct {
+	key   string
+	value string
+}
+
+func upsertTopLevelTOMLStrings(content string, pairs []tomlStringKV) string {
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 	lines := strings.Split(content, "\n")
-	lineValue := fmt.Sprintf("%s = %s", key, tomlQuote(value))
 
-	cleaned := make([]string, 0, len(lines)+1)
+	managed := make(map[string]struct{}, len(pairs))
+	for _, pair := range pairs {
+		managed[pair.key] = struct{}{}
+	}
+
+	cleaned := make([]string, 0, len(lines)+len(pairs))
+	inTopLevel := true
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, key+" ") || strings.HasPrefix(trimmed, key+"=") {
-			continue
+		if isTOMLTableHeader(trimmed) {
+			inTopLevel = false
+		}
+		if inTopLevel {
+			skip := false
+			for key := range managed {
+				if isTOMLKeyLine(trimmed, key) {
+					skip = true
+					break
+				}
+			}
+			if skip {
+				continue
+			}
 		}
 		cleaned = append(cleaned, line)
+	}
+
+	for len(cleaned) > 0 && strings.TrimSpace(cleaned[0]) == "" {
+		cleaned = cleaned[1:]
+	}
+	for len(cleaned) > 0 && strings.TrimSpace(cleaned[len(cleaned)-1]) == "" {
+		cleaned = cleaned[:len(cleaned)-1]
 	}
 
 	insertAt := len(cleaned)
 	for i, line := range cleaned {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		if isTOMLTableHeader(trimmed) {
 			insertAt = i
 			break
 		}
 	}
 
+	newLines := make([]string, 0, len(pairs))
+	for _, pair := range pairs {
+		if strings.TrimSpace(pair.value) == "" {
+			continue
+		}
+		newLines = append(newLines, fmt.Sprintf("%s = %s", pair.key, tomlQuote(pair.value)))
+	}
+
+	if insertAt < len(cleaned) && len(newLines) > 0 {
+		if insertAt > 0 && strings.TrimSpace(cleaned[insertAt-1]) != "" {
+			newLines = append(newLines, "")
+		}
+	} else if insertAt == len(cleaned) && len(cleaned) > 0 && len(newLines) > 0 && strings.TrimSpace(cleaned[len(cleaned)-1]) != "" {
+		newLines = append([]string{""}, newLines...)
+	}
+
 	out := make([]string, 0, len(cleaned)+1)
 	out = append(out, cleaned[:insertAt]...)
-	out = append(out, lineValue)
+	out = append(out, newLines...)
 	out = append(out, cleaned[insertAt:]...)
 	return strings.TrimSpace(strings.Join(out, "\n")) + "\n"
 }
@@ -157,10 +208,10 @@ func removeTopLevelTOMLKey(content, key string) string {
 	inTopLevel := true
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+		if isTOMLTableHeader(trimmed) {
 			inTopLevel = false
 		}
-		if inTopLevel && (strings.HasPrefix(trimmed, key+" ") || strings.HasPrefix(trimmed, key+"=")) {
+		if inTopLevel && isTOMLKeyLine(trimmed, key) {
 			continue
 		}
 		out = append(out, line)
@@ -175,4 +226,29 @@ func removeTopLevelTOMLKey(content, key string) string {
 func tomlQuote(s string) string {
 	replacer := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 	return `"` + replacer.Replace(s) + `"`
+}
+
+func validateTOML(content string) error {
+	if strings.TrimSpace(content) == "" {
+		return nil
+	}
+	var decoded map[string]any
+	if _, err := toml.Decode(content, &decoded); err != nil {
+		return err
+	}
+	return nil
+}
+
+func isTOMLTableHeader(trimmed string) bool {
+	if strings.HasPrefix(trimmed, "#") {
+		return false
+	}
+	return strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]")
+}
+
+func isTOMLKeyLine(trimmed, key string) bool {
+	if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+		return false
+	}
+	return strings.HasPrefix(trimmed, key+" ") || strings.HasPrefix(trimmed, key+"=")
 }

@@ -52,4 +52,3 @@ func ApplyPersonaToInstances(instances []Instance, persona string) error {
 	}
 	return firstErr
 }
-

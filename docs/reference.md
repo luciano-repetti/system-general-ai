@@ -14,9 +14,19 @@ Source: `templates/settings/{permissive,balanced,strict}.json`. The `defaultMode
 
 `permissive` trades up-front prompts for trust + a deny list. `balanced` asks before mutating tools. `strict` asks for almost everything mutating, including all MCP servers.
 
+## SDD behavior by target
+
+| Target | Entry point | Behavior |
+|---|---|---|
+| Claude Code | `<instance>/CLAUDE.md` + skills | Coordinator-first SDD with delegation rules and phase skills. |
+| Gemini CLI | project/global `GEMINI.md` + skills | Same SDD phase model adapted to Gemini global skills. |
+| Codex | `~/.codex/AGENTS.md`, project `AGENTS.md`, `~/.codex/skills/` | Smallest useful SDD path. Direct answers, simple lookups, and trivial one-file changes do not force phase ceremony. Subagents are conditional on availability and value. |
+
+Codex also receives `model_instructions_file` and `experimental_compact_prompt_file` entries for Engram in `~/.codex/config.toml`.
+
 ## SDD model assignments
 
-Source: `templates/orchestrator.md:42`.
+Source: `templates/orchestrator.md` for Claude Code and the shared phase model.
 
 | Phase | Model | Reason |
 |---|---|---|
@@ -33,6 +43,8 @@ Source: `templates/orchestrator.md:42`.
 | default delegation | sonnet | — |
 
 If the assigned model isn't available, sub-agents substitute `sonnet` and continue.
+
+Codex templates do not assign Claude model names. They express orchestration policy, Engram usage, phase order, and delegation rules in `templates/codex/orchestrator.md`.
 
 ## Skills shipped
 
@@ -83,6 +95,8 @@ What `install`/`sync` writes and what `uninstall` removes. Source: `internal/cla
 | Engram compact prompt | `~/.codex/engram-compact-prompt.md` | Overwrites with template | File removed |
 | Skills | `~/.codex/skills/<name>/SKILL.md` | Overwrites managed `SKILL.md` files | Removes managed `SKILL.md`; preserves user extras in the directory |
 | Backups | `~/.codex/backups/system-general-ai-*` | Created before modifying Codex config files | Left in place |
+
+Run Codex install/sync from the project directory that should receive `./AGENTS.md`. The global files are always written under `CODEX_HOME` when set, otherwise `~/.codex`.
 
 ## Engram MCP entry
 

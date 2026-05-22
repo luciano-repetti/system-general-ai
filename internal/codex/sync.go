@@ -33,20 +33,14 @@ func Sync(inst Instance, opts SyncOptions) error {
 	if err := ensureDirs(inst); err != nil {
 		return err
 	}
-
-	pathsToBackup := []string{
-		inst.ConfigPath(),
-		inst.AGENTSPath(),
-		filepath.Join(opts.ProjectDir, "AGENTS.md"),
-	}
-	if err := backupExisting(inst, pathsToBackup); err != nil {
-		return fmt.Errorf("backup codex config: %w", err)
+	if err := validateExistingCodexConfig(inst); err != nil {
+		return err
 	}
 
 	if err := syncGlobalAGENTS(inst, opts); err != nil {
 		return fmt.Errorf("global AGENTS.md: %w", err)
 	}
-	if err := syncProjectAGENTS(opts); err != nil {
+	if err := syncProjectAGENTS(inst, opts); err != nil {
 		return fmt.Errorf("project AGENTS.md: %w", err)
 	}
 	if err := syncSkills(inst, opts); err != nil {
@@ -59,6 +53,17 @@ func Sync(inst Instance, opts SyncOptions) error {
 		return fmt.Errorf("config.toml: %w", err)
 	}
 
+	return nil
+}
+
+func validateExistingCodexConfig(inst Instance) error {
+	existing, err := readTextOrEmpty(inst.ConfigPath())
+	if err != nil {
+		return err
+	}
+	if err := validateTOML(existing); err != nil {
+		return fmt.Errorf("existing config.toml is invalid TOML: %w", err)
+	}
 	return nil
 }
 
@@ -106,10 +111,10 @@ func syncGlobalAGENTS(inst Instance, opts SyncOptions) error {
 		existing = removeMarkedSection(existing, "persona")
 	}
 
-	return writeTextEnsureDir(inst.AGENTSPath(), existing)
+	return writeManagedText(inst, inst.AGENTSPath(), existing)
 }
 
-func syncProjectAGENTS(opts SyncOptions) error {
+func syncProjectAGENTS(inst Instance, opts SyncOptions) error {
 	projectPath := filepath.Join(opts.ProjectDir, "AGENTS.md")
 	existing, err := readTextOrEmpty(projectPath)
 	if err != nil {
@@ -121,7 +126,7 @@ func syncProjectAGENTS(opts SyncOptions) error {
 		return fmt.Errorf("read codex project template: %w", err)
 	}
 	existing = mergeMarkedSection(existing, "project-rules", string(projectRules))
-	return writeTextEnsureDir(projectPath, existing)
+	return writeManagedText(inst, projectPath, existing)
 }
 
 func syncSkills(inst Instance, opts SyncOptions) error {
@@ -163,63 +168,59 @@ func syncConfig(inst Instance, opts SyncOptions) error {
 	if err != nil {
 		return err
 	}
+	if err := validateTOML(existing); err != nil {
+		return fmt.Errorf("existing config.toml is invalid TOML: %w", err)
+	}
 
-	updated := upsertTopLevelTOMLString(existing, "model_instructions_file", inst.EngramInstructionsPath())
-	updated = upsertTopLevelTOMLString(updated, "experimental_compact_prompt_file", inst.EngramCompactPromptPath())
+	updated := upsertTopLevelTOMLStrings(existing, []tomlStringKV{
+		{key: "model_instructions_file", value: inst.EngramInstructionsPath()},
+		{key: "experimental_compact_prompt_file", value: inst.EngramCompactPromptPath()},
+	})
 	if opts.EngramBinary != "" {
 		updated = upsertCodexEngramBlock(updated, opts.EngramBinary)
 	}
+	if err := validateTOML(updated); err != nil {
+		return fmt.Errorf("generated config.toml is invalid TOML: %w", err)
+	}
 
-	return writeTextEnsureDir(inst.ConfigPath(), updated)
+	return writeManagedText(inst, inst.ConfigPath(), updated)
 }
 
 func backupExisting(inst Instance, paths []string) error {
-	stamp := time.Now().UTC().Format("20060102-150405")
-	backupDir := filepath.Join(inst.Path, "backups", "system-general-ai-"+stamp)
-	wrote := false
-
 	for _, p := range paths {
-		info, err := os.Stat(p)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
+		if err := backupExistingFile(inst, p); err != nil {
 			return err
 		}
-		if !info.Mode().IsRegular() {
-			continue
-		}
-		rel := strings.TrimPrefix(filepath.Clean(p), filepath.VolumeName(filepath.Clean(p)))
-		rel = strings.TrimLeft(rel, string(filepath.Separator))
-		dst := filepath.Join(backupDir, rel)
-		if err := copyFilePath(p, dst); err != nil {
-			return err
-		}
-		wrote = true
-	}
-
-	if !wrote {
-		return nil
 	}
 	return nil
 }
 
+func backupExistingFile(inst Instance, p string) error {
+	stamp := time.Now().UTC().Format("20060102-150405")
+	backupDir := filepath.Join(inst.Path, "backups", "system-general-ai-"+stamp)
+
+	info, err := os.Stat(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return nil
+	}
+	rel := strings.TrimPrefix(filepath.Clean(p), filepath.VolumeName(filepath.Clean(p)))
+	rel = strings.TrimLeft(rel, string(filepath.Separator))
+	dst := filepath.Join(backupDir, rel)
+	return copyFilePath(p, dst)
+}
+
 func copyFromFS(srcFS fs.FS, srcPath, dst string) error {
-	in, err := srcFS.Open(path.Clean(srcPath))
+	raw, err := fs.ReadFile(srcFS, path.Clean(srcPath))
 	if err != nil {
 		return err
 	}
-	defer in.Close()
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
+	return writeBytesEnsureDirIfChanged(dst, raw)
 }
 
 func copyFilePath(src, dst string) error {
@@ -252,13 +253,47 @@ func readTextOrEmpty(path string) (string, error) {
 }
 
 func writeTextEnsureDir(path, content string) error {
+	return writeBytesEnsureDirIfChanged(path, []byte(normalizeFinalNewline(content)))
+}
+
+func writeManagedText(inst Instance, path, content string) error {
+	normalized := normalizeFinalNewline(content)
+	existing, err := os.ReadFile(path)
+	if err == nil && string(existing) == normalized {
+		return nil
+	}
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
+	if err == nil {
+		if info, statErr := os.Stat(path); statErr == nil && info.Mode().IsRegular() {
+			if err := backupExistingFile(inst, path); err != nil {
+				return fmt.Errorf("backup %s: %w", path, err)
+			}
+		}
+	}
+	return writeBytesEnsureDirIfChanged(path, []byte(normalized))
+}
+
+func writeBytesEnsureDirIfChanged(path string, content []byte) error {
+	existing, err := os.ReadFile(path)
+	if err == nil && string(existing) == string(content) {
+		return nil
+	}
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("read %s: %w", path, err)
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
+	return os.WriteFile(path, content, 0o644)
+}
+
+func normalizeFinalNewline(content string) string {
 	if strings.TrimSpace(content) != "" && !strings.HasSuffix(content, "\n") {
 		content += "\n"
 	}
-	return os.WriteFile(path, []byte(content), 0o644)
+	return content
 }
 
 func stripFrontmatter(content string) string {

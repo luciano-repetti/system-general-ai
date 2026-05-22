@@ -14,7 +14,7 @@ var templates fs.FS
 
 var rootCmd = &cobra.Command{
 	Use:           "system-general-ai",
-	Short:         "Direct, focused AI ecosystem configurator for Claude Code",
+	Short:         "Direct, focused AI ecosystem configurator for Claude Code, Gemini CLI, and Codex",
 	Version:       version,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -33,4 +33,3 @@ func Execute(t fs.FS) error {
 	templates = t
 	return rootCmd.Execute()
 }
-

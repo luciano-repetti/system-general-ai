@@ -95,7 +95,7 @@ func syncProjectRules(projectDir string, opts SyncOptions) error {
 func syncGlobalRules(opts SyncOptions) error {
 	home, _ := os.UserHomeDir()
 	globalGeminiPath := filepath.Join(home, ".gemini", "GEMINI.md")
-	
+
 	// We treat the global GEMINI.md similarly to the project one
 	content, err := os.ReadFile(globalGeminiPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -128,13 +128,13 @@ func syncGlobalSettings(opts SyncOptions) error {
 
 	home, _ := os.UserHomeDir()
 	settingsPath := filepath.Join(home, ".gemini", "settings.json")
-	
+
 	existing, err := readJSONOrEmpty(settingsPath)
 	if err != nil {
 		return err
 	}
 
-	// For Gemini CLI, the MCP configuration structure is not officially documented 
+	// For Gemini CLI, the MCP configuration structure is not officially documented
 	// in the same way as Claude Code, but many tools use an "mcpServers" block.
 	// If Gemini CLI starts supporting it natively, we are ready.
 	mcpServers, ok := existing["mcpServers"].(map[string]any)
@@ -221,7 +221,7 @@ func syncGlobalSkills(opts SyncOptions) error {
 func syncGlobalPolicy() error {
 	home, _ := os.UserHomeDir()
 	policyPath := filepath.Join(home, ".gemini", "policies", "permissive.toml")
-	
+
 	policy := `[[rule]]
 toolName = "*"
 decision = "allow"
@@ -260,20 +260,20 @@ func RemoveMarkedSection(path string, id string) error {
 
 	// Remove section and the following newline if any
 	result := append(content[:startIdx], content[endIdx+len(endMarker):]...)
-	
+
 	// Trim leading/trailing whitespace around the cut
 	trimmed := strings.TrimSpace(string(result))
 	if trimmed == "" {
 		return os.Remove(path)
 	}
-	
+
 	return os.WriteFile(path, []byte(trimmed+"\n"), 0644)
 }
 
 func mergeMarkedSection(content []byte, id string, section []byte) []byte {
 	startMarker := fmt.Sprintf(markerStartFmt, id)
 	endMarker := fmt.Sprintf(markerEndFmt, id)
-	
+
 	newSection := bytes.Join([][]byte{
 		[]byte(startMarker),
 		bytes.TrimSpace(section),
@@ -292,7 +292,7 @@ func mergeMarkedSection(content []byte, id string, section []byte) []byte {
 	}
 
 	// Replace existing section
-	result := make([]byte, 0, len(content)- (endIdx+len(endMarker)-startIdx) + len(newSection))
+	result := make([]byte, 0, len(content)-(endIdx+len(endMarker)-startIdx)+len(newSection))
 	result = append(result, content[:startIdx]...)
 	result = append(result, newSection...)
 	result = append(result, content[endIdx+len(endMarker):]...)

@@ -5,8 +5,8 @@ import (
 	"io/fs"
 	"os"
 
-	sgai "github.com/lucianorepetti/system-general-ai"
-	"github.com/lucianorepetti/system-general-ai/internal/cli"
+	sgai "github.com/luciano-repetti/system-general-ai"
+	"github.com/luciano-repetti/system-general-ai/internal/cli"
 )
 
 func main() {
@@ -22,4 +22,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-

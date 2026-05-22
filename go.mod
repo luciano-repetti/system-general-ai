@@ -1,8 +1,9 @@
-module github.com/lucianorepetti/system-general-ai
+module github.com/luciano-repetti/system-general-ai
 
 go 1.24
 
 require (
+	github.com/BurntSushi/toml v1.5.0
 	github.com/charmbracelet/huh v1.0.0
 	github.com/spf13/cobra v1.8.1
 )

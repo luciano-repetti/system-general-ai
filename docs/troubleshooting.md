@@ -94,7 +94,7 @@ Same hardlink-style mental model applies: anything you write under a junction la
 Requires **Go 1.24+**.
 
 ```bash
-git clone https://github.com/lucianorepetti/system-general-ai
+git clone https://github.com/luciano-repetti/system-general-ai
 cd system-general-ai
 go mod tidy
 go build -o sgai ./cmd/system-general-ai

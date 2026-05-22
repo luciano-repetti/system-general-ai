@@ -10,9 +10,9 @@ import (
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 
-	"github.com/lucianorepetti/system-general-ai/internal/claude"
-	codexpkg "github.com/lucianorepetti/system-general-ai/internal/codex"
-	"github.com/lucianorepetti/system-general-ai/internal/gemini"
+	"github.com/luciano-repetti/system-general-ai/internal/claude"
+	codexpkg "github.com/luciano-repetti/system-general-ai/internal/codex"
+	"github.com/luciano-repetti/system-general-ai/internal/gemini"
 )
 
 var uninstallCmd = &cobra.Command{

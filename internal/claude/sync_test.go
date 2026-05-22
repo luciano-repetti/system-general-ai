@@ -11,12 +11,12 @@ import (
 // fakeTemplates returns an in-memory fs.FS shaped like our real templates folder.
 func fakeTemplates() fstest.MapFS {
 	return fstest.MapFS{
-		"output-style.md":             {Data: []byte("# Output Style\nfake\n")},
-		"CLAUDE.md.global.tmpl":       {Data: []byte("# Global Rules\nfake-rules\n")},
-		"orchestrator.md":             {Data: []byte("# Orchestrator\nfake-orch\n")},
-		"settings/permissive.json":    {Data: []byte(`{"outputStyle":"system-general-ai","permissions":{"allow":["Read"]}}`)},
-		"settings/balanced.json":      {Data: []byte(`{"outputStyle":"system-general-ai","permissions":{"allow":["Read"],"ask":["Edit"]}}`)},
-		"settings/strict.json":        {Data: []byte(`{"outputStyle":"system-general-ai","permissions":{"allow":["Read"],"ask":["Edit","Write"]}}`)},
+		"output-style.md":                 {Data: []byte("# Output Style\nfake\n")},
+		"CLAUDE.md.global.tmpl":           {Data: []byte("# Global Rules\nfake-rules\n")},
+		"orchestrator.md":                 {Data: []byte("# Orchestrator\nfake-orch\n")},
+		"settings/permissive.json":        {Data: []byte(`{"outputStyle":"system-general-ai","permissions":{"allow":["Read"]}}`)},
+		"settings/balanced.json":          {Data: []byte(`{"outputStyle":"system-general-ai","permissions":{"allow":["Read"],"ask":["Edit"]}}`)},
+		"settings/strict.json":            {Data: []byte(`{"outputStyle":"system-general-ai","permissions":{"allow":["Read"],"ask":["Edit","Write"]}}`)},
 		"skills/sdd-init/SKILL.md":        {Data: []byte("---\nname: sdd-init\n---\nfake init\n")},
 		"skills/shell-runner/SKILL.md":    {Data: []byte("---\nname: shell-runner\n---\nfake runner\n")},
 		"skills/compact-suggest/SKILL.md": {Data: []byte("---\nname: compact-suggest\n---\nfake compact\n")},
@@ -168,4 +168,3 @@ func TestSync_MergesSettingsPreservingUserKeys(t *testing.T) {
 		t.Errorf("our outputStyle not applied: %v", got["outputStyle"])
 	}
 }
-
