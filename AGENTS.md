@@ -5,9 +5,9 @@ This project uses system-general-ai with Codex.
 
 ## Defaults
 
-- SDD is always on for non-trivial work.
+- SDD is always on for non-trivial coding work, using the smallest useful path.
 - Engram is always on for durable project memory.
-- Subagents should be used whenever they reduce latency or isolate independent work.
+- Subagents should be used only when they reduce latency, isolate independent work, or keep large context out of the main thread.
 - Keep edits scoped to the requested behavior and the repo's existing patterns.
 
 ## Task Start
@@ -15,7 +15,7 @@ This project uses system-general-ai with Codex.
 Before changing code:
 
 1. Search Engram for project memory and active SDD state.
-2. Inspect only the files needed to classify the task.
+2. Inspect only the files needed to classify the task and verify assumptions.
 3. Decide whether this is trivial, small, medium, or large.
 4. Use the matching SDD path from the global rules.
 
