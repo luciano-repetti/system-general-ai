@@ -4,32 +4,83 @@ These rules are global. Project AGENTS.md files may add narrower instructions.
 
 ## Operating Loop
 
-For every non-trivial coding or repository task, follow this loop. For direct answers, explanations, or one-off file lookups, answer directly after verifying what is needed.
+For non-trivial coding or repository work:
 
-1. Search Engram for relevant project memory before touching code.
+1. Recover relevant Engram memory using the budget below.
 2. Classify task size: trivial, small, medium, or large.
 3. Choose the smallest sufficient SDD path.
-4. Decide whether subagents or skills can reduce latency or context load.
-5. Execute with explicit verification.
-6. Save durable discoveries, decisions, bug causes, and SDD state to Engram.
+4. Decide whether skills or subagents reduce latency/context.
+5. Execute with scoped edits and explicit verification.
+6. Save only durable discoveries, decisions, bug causes, commands, and SDD state.
 7. Close with changed files, verification evidence, residual risk, and memory saved.
 
-Do not ask whether to use SDD. Use the smallest path that fits the task, and skip phase ceremony when it would add no evidence.
+For direct answers, explanations, and one-off lookups, answer directly after verifying what is needed. Do not force SDD or Engram when it adds no evidence.
 
 ## SDD By Task Size
 
-- Trivial: direct answer, local lookup, or one-file mechanical change. Edit directly, verify if relevant, finish.
+- Trivial: direct answer, local lookup, or one-file mechanical change. Edit directly and verify if relevant.
 - Small: one narrow behavior change. Use light SDD: focused explore -> apply -> verify.
 - Medium: multi-file change, new logic, integration work, or uncertainty. Use focused explore -> design/spec only if needed -> tasks -> apply -> verify.
 - Large: broad behavior, architecture, migration, hard bug, or ambiguous scope. Use full SDD: init -> explore -> propose -> spec -> design -> tasks -> apply -> verify -> archive.
 
-If a task grows, move to the next SDD level immediately. Do not continue ad hoc.
+If a task grows, move to the next SDD level immediately.
+
+## Engram Usage Budget
+
+Engram is mandatory for durable project memory, not for every turn.
+
+- Trivial/direct: skip Engram unless the user asks about past work.
+- Small: one focused memory pass before editing. Combine project context, prior decisions, bugs, commands, and active SDD state in one `mem_search` where possible.
+- Medium/large: use `mem_context` once, then targeted `mem_search` for project context, `sdd-init/{project}`, active SDD artifacts, decisions, bugs, commands, and environment traps. Cache results for the phase.
+- Continuation: search exact `sdd/{change}/...` topic keys and call `mem_get_observation` before using truncated results.
+
+If project identity is uncertain, call `mem_current_project`. If Engram is unavailable, say so briefly and continue with local context; do not pretend memory was checked.
+
+## Engram Tool Map
+
+Use all available Engram MCP tools, not only `mem_search` / `mem_save`:
+
+- Context/read: `mem_current_project`, `mem_context`, `mem_search`, `mem_get_observation`.
+- Save/update: `mem_save`, `mem_update`, `mem_suggest_topic_key`, `mem_save_prompt`, `mem_capture_passive`.
+- Session lifecycle: `mem_session_start`, `mem_session_summary`, `mem_session_end`.
+- Conflict/relation handling: `mem_judge`, `mem_compare`.
+- Diagnostics/admin: `mem_doctor`, `mem_stats`, `mem_timeline`, `mem_delete`, `mem_merge_projects`.
+
+If a needed Engram tool is not visible, use tool discovery / ToolSearch with the exact tool name. Use destructive/admin tools only when explicitly requested or clearly safe.
+
+## Save / Do Not Save
+
+Save immediately when the information would help a future session avoid rediscovery or preserve intent:
+
+- business rule, domain invariant, integration contract;
+- architecture/design decision and trade-off;
+- verified bug root cause or fix;
+- non-obvious discovery that required effort;
+- command, setup, platform issue, or environment trap;
+- user-facing behavior or contract change;
+- SDD phase artifact or apply/verify progress.
+
+Do not save raw logs, full command output, secrets, tokens, duplicate file contents, obvious facts, routine git status/push results, or passing test output unless it supports a saved fix/decision.
+
+Use stable topic keys and upsert/update when possible:
+
+- `{project}/business-logic`
+- `{project}/architecture`
+- `{project}/decisions`
+- `{project}/bugs`
+- `{project}/commands`
+- `{project}/environment`
+- `{project}/testing`
+- `sdd-init/{project}`
+- `sdd/{change}/...`
+
+If a key is unclear, call `mem_suggest_topic_key`. If you know the exact observation ID, use `mem_update` instead of creating a duplicate.
+
+If `mem_save` returns `judgment_required`, call `mem_judge` once per candidate using that candidate's `judgment_id`. Ask the user only for low-confidence judgments or architecture/policy/decision conflicts.
 
 ## Subagents
 
-Use subagents when they materially reduce latency or context growth. Do not spawn subagents for work that is faster and safer in the main thread.
-
-Use this decision table:
+Use subagents only when they materially reduce latency or context growth.
 
 | Need | Use |
 |---|---|
@@ -40,85 +91,12 @@ Use this decision table:
 | Review diff, incidents, or risky behavior | verifier with fresh context |
 | Immediate blocking fact needed now | main thread |
 
-Before parallel workers:
-
-- define file ownership;
-- state allowed write scope;
-- tell each worker other agents may be editing;
-- forbid reverting unrelated edits;
-- require verification evidence.
-
-If the required subagent tool is unavailable, continue in the main thread and keep the context small. While subagents run, continue non-overlapping work locally. Wait only when their result blocks the next step.
-
-## Engram
-
-Engram is mandatory operational memory. Use it before, during, and after meaningful work.
-
-Before meaningful work, search for:
-
-- prior project context;
-- business logic and domain invariants;
-- architecture and decisions;
-- known bugs and root causes;
-- commands, tests, and environment traps;
-- active SDD state.
-
-If the exact project name is unknown in Engram, retry without an explicit project filter and use the detected project from the result.
-
-During work, save immediately when the information would help a future session avoid rediscovery:
-
-- a business rule or invariant is discovered;
-- an architectural or design decision is made;
-- a bug root cause is verified;
-- a discovery required multiple searches, failed attempts, or meaningful time;
-- a command, config, platform issue, or environment trap is found;
-- user-facing behavior or contract changes;
-- SDD phase state changes.
-
-After substantial work, save:
-
-- final state;
-- changed behavior;
-- verification evidence;
-- residual risks;
-- next steps.
-
-Memory must be compact, durable, and retrieval-oriented. Do not save raw logs, full command output, secrets, tokens, duplicate file contents, or obvious facts.
-
-## Topic Keys
-
-Use stable project-scoped keys:
-
-- `{project}/business-logic`
-- `{project}/architecture`
-- `{project}/decisions`
-- `{project}/bugs`
-- `{project}/commands`
-- `{project}/environment`
-- `{project}/testing`
-- `{project}/sdd/current`
-- `{project}/sdd/archive/{change}`
-
-For SDD artifacts, use the orchestrator topic key contract exactly.
+Before parallel workers: define file ownership, allowed write scope, relevant Engram topic keys, expected verification, and forbid reverting unrelated edits.
 
 ## Output Style
 
-Follow the system-general-ai output style installed in this AGENTS.md. Be direct, technical, concise, and evidence-based.
-
-## Completion Contract
-
-Do not finish substantial work with only "done". For direct answers or no-file changes, keep the closeout minimal.
-
-Final response must include:
-
-- what changed;
-- where it changed;
-- verification performed;
-- anything not verified;
-- what was saved to Engram, if applicable.
-
-Keep it short. Evidence beats narration.
+Be direct, technical, concise, and evidence-based. For substantial work, final response must include changed files or behavior, verification performed, anything not verified, and Engram memory saved or explicit reason none was needed.
 
 ## Recovery
 
-If context is missing, a session resumed, or compaction happened, search Engram for project context and active SDD state before restarting analysis. Do not rediscover from scratch until memory was checked.
+If context is missing, a session resumed, or compaction happened, recover project context from Engram before restarting analysis. Do not rediscover from scratch until memory was checked.

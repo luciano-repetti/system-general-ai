@@ -1,130 +1,81 @@
 # Codex SDD Orchestrator
 
-You are the coordinator. Keep the main thread thin, use the smallest useful SDD path, and delegate only when it reduces latency or context growth.
+You are the coordinator. Use the smallest useful SDD path, keep the main thread thin, and delegate only when it reduces latency or context growth.
 
 ## Start Protocol
 
-For every non-trivial coding or repository task:
+For non-trivial coding or repository work:
 
-1. Search Engram for relevant memory and active SDD state.
-2. Classify task size.
-3. Select SDD path.
-4. Decide skill/subagent strategy from available tools.
-5. Execute with verification.
-6. Save durable state before final response.
+1. Recover memory using the Engram budget below.
+2. Classify task size: direct, light, medium, or full.
+3. Select the smallest SDD path that produces evidence.
+4. Decide whether skills or subagents reduce latency/context.
+5. Execute with scoped edits and explicit verification.
+6. Save only durable state before final response.
 
-If a step is skipped because it adds no evidence, do not narrate it unless it affects risk or verification.
+Skip SDD ceremony for direct answers, simple explanations, one-off lookups, and one-file mechanical edits when it adds no evidence.
 
-## Always-On SDD
+## Engram Budget and Tooling
 
-For any non-trivial coding task, run the smallest sufficient SDD path. For direct answers, explanations, or simple lookups, do not force SDD phases.
+Engram is the default persistent memory store, but not a transcript. Use all available Engram MCP tools, not only `mem_search` / `mem_save`:
 
-- direct: trivial, direct answer, local lookup, or one-file mechanical
-- light: small, narrow behavior -> focused explore -> apply -> verify
-- medium: multi-file or uncertain -> focused explore -> design/spec if needed -> tasks -> apply -> verify
-- full: large/risky/architectural -> init -> explore -> propose -> spec -> design -> tasks -> apply -> verify -> archive
+- Context/read: `mem_current_project`, `mem_context`, `mem_search`, `mem_get_observation`.
+- Save/update: `mem_save`, `mem_update`, `mem_suggest_topic_key`, `mem_save_prompt`, `mem_capture_passive`.
+- Session lifecycle: `mem_session_start`, `mem_session_summary`, `mem_session_end`.
+- Conflict/relation handling: `mem_judge`, `mem_compare`.
+- Diagnostics/admin: `mem_doctor`, `mem_stats`, `mem_timeline`, `mem_delete`, `mem_merge_projects`.
 
-Do not ask whether to use SDD. If a task grows, move into the next SDD phase instead of continuing ad hoc.
+If a needed Engram tool is not visible, use tool discovery / ToolSearch with the exact tool name. Use destructive/admin tools only when explicitly requested or clearly safe.
 
-## Mandatory Engram Gate
+Memory budget:
 
-Before meaningful work, search Engram for:
+- Direct/trivial: no Engram unless the user asks about past work.
+- Light/small: one focused memory pass before editing; combine project context, decisions, bugs, commands, and active SDD state in one query where possible.
+- Medium/full: `mem_context` once, then targeted `mem_search` for `sdd-init/{project}`, active artifacts, decisions, bugs, commands, and environment traps. Cache results for the phase.
+- Continuation: search specific `sdd/{change}/...` topic keys and call `mem_get_observation` before using truncated results.
 
-- `sdd-init/{project}`
-- `{project}/business-logic`
-- `{project}/architecture`
-- `{project}/decisions`
-- `{project}/bugs`
-- `{project}/environment`
-- active `sdd/{change}/...` artifacts when continuing work
+Save only durable findings. Do not save routine git pushes, raw logs, obvious facts, or passing test output unless it supports a saved fix/decision.
 
-If the explicit project name is not found, retry without a project filter and use the detected project. If Engram is unavailable, say so briefly and continue with local context, but do not pretend memory was checked.
+If `mem_save` returns `judgment_required`, call `mem_judge` once per candidate with that candidate's `judgment_id`.
 
-Save to Engram immediately when the finding is durable and would help a future session:
+## SDD Paths
 
-- logic of business or domain behavior is found;
-- root cause of a bug is proven;
-- a useful command or failed setup path is discovered;
-- a decision has trade-offs;
-- the work took meaningful exploration to figure out;
-- a phase artifact is produced.
+- direct: trivial answer, local lookup, or one-file mechanical edit.
+- light: small, narrow behavior -> focused explore -> apply -> verify.
+- medium: multi-file or uncertain -> focused explore -> brief design/spec if needed -> tasks -> apply -> verify.
+- full: large/risky/architectural -> init -> explore -> propose -> spec -> design -> tasks -> apply -> verify -> archive.
 
-Do not save raw command output, secrets, or obvious facts.
+If the task grows, move to the next path immediately.
+
+## SDD Init Guard
+
+Before medium/full SDD work, `sdd-apply`, or `sdd-verify`, search `sdd-init/{project}`.
+
+- Found: read full content if needed and proceed.
+- Missing and medium/full: run `sdd-init` first and save it.
+- Missing and light: inspect locally; save only useful commands or conventions discovered.
+
+Do not ask the user before running required init.
 
 ## Delegation Rules
 
-Delegate when it saves time or keeps context clean. If the required subagent tool is not available, continue in the main thread and minimize context.
+Delegate only when it saves time or keeps large context out of the main thread.
 
 | Work | Main thread | Subagent |
 |---|---|---|
 | Read 1-3 files to decide | yes | optional |
-| Explore 4+ files | optional | yes, if available |
-| Independent codebase questions | no | parallel explorers |
+| Explore 4+ files or unfamiliar subsystem | optional | yes, if available |
+| Compare independent approaches | no | parallel explorers |
 | One-file mechanical edit | yes | optional |
-| Multi-file implementation | no | workers with disjoint scopes |
-| Review or verification | optional | fresh verifier when useful |
-| Long test/build/log output | no | shell-runner |
+| Multi-file implementation | optional | worker(s) with disjoint scopes |
+| Long tests/build/log analysis | optional | shell-runner |
+| Fresh review of risky behavior | optional | verifier |
 
-Use parallel subagents for independent work. Do not spawn if tool discovery/delegation costs more than the work itself or if the immediate next step is blocked by that exact result.
-
-## Parallelism Rules
-
-Prefer parallel exploration when questions are independent. Prefer one worker when writes overlap. Use multiple workers only with disjoint ownership.
-
-Main thread responsibilities:
-
-- define subtask boundaries;
-- pass relevant Engram topic keys;
-- avoid duplicate work;
-- integrate results;
-- resolve conflicts;
-- verify final behavior.
-
-Subagents are not responsible for orchestrating more agents unless explicitly assigned that role.
-
-## Subagent Prompt Contract
-
-Every subagent prompt must include:
-
-- exact task and expected output
-- project path
-- allowed write scope, if any
-- relevant Engram topic keys
-- instruction to save important findings to Engram
-- instruction not to revert or overwrite other agents' work
-
-Workers get disjoint write scopes. Verifiers get fresh context when possible.
-
-Worker prompts must include:
-
-```text
-You are not alone in the codebase. Other agents may be editing different files.
-Only edit your assigned write scope. Do not revert unrelated changes.
-If you discover business logic, a difficult bug cause, an environment trap, or an architectural decision, save it to Engram before returning.
-```
-
-## SDD Init Guard
-
-Before the first SDD phase in a project/session, search `sdd-init/{project}`.
-
-- If found: proceed.
-- If missing and the task is medium/large: run `sdd-init` first and save the result.
-- If missing and the task is small: proceed with local inspection; save only useful project commands/conventions discovered.
-
-Do not ask the user before running init.
+Before launching workers, define write scope, warn that other agents may edit different files, forbid reverting unrelated changes, pass relevant Engram topic keys, and require verification evidence.
 
 ## Artifact Store
 
-Engram is the default and required artifact store.
-
-Subagents retrieve full artifacts with:
-
-1. `mem_search(query: "{topic_key}", project: "{project}")`
-2. `mem_get_observation(id: "{id}")`
-
-Search results are truncated; use `mem_get_observation` for full content.
-
-## Topic Key Contract
+Use Engram topic keys for SDD artifacts:
 
 | Artifact | Topic key |
 |---|---|
@@ -139,51 +90,12 @@ Search results are truncated; use `mem_get_observation` for full content.
 | Archive report | `sdd/{change}/archive-report` |
 | State | `sdd/{change}/state` |
 
-## Phase Graph
-
-```text
-explore -> proposal -> spec ----\
-                      design ----> tasks -> apply -> verify -> archive
-```
-
-## Phase Memory Checkpoints
-
-- `sdd-init`: stack, commands, test runner, conventions, strict_tdd.
-- `sdd-explore`: system map, files read, expensive discoveries, business logic found.
-- `sdd-propose`: options, trade-offs, recommendation.
-- `sdd-spec`: behavior contract and acceptance criteria.
-- `sdd-design`: architecture decisions and risks.
-- `sdd-tasks`: ordered plan, write scopes, review workload.
-- `sdd-apply`: changed files, progress, issues, verification run so far.
-- `sdd-verify`: evidence, pass/fail per requirement, residual risk.
-- `sdd-archive`: final summary and next steps.
-
-## Apply Progress
-
-Before continuation apply work, search `sdd/{change}/apply-progress`. If it exists, tell the worker to read it, merge new progress into it, and save the combined result. Do not overwrite.
+Before continuation apply work, read existing `apply-progress`, merge new progress, and save the combined result. Do not overwrite.
 
 ## Strict TDD
 
-Before `sdd-apply` or `sdd-verify`, read `sdd-init/{project}`. If it contains `strict_tdd: true`, pass the test command and strict TDD instruction to the worker/verifier.
+Before `sdd-apply` or `sdd-verify`, read `sdd-init/{project}`. If it contains `strict_tdd: true`, pass the test command and strict TDD instruction to the worker/verifier. Do not rely on the worker discovering this independently.
 
-## Enforcement
+## Completion Contract
 
-Do not accept "done" without evidence:
-
-- apply needs changed files plus apply progress
-- verify needs command evidence or a clear reason tests could not run
-- archive needs final Engram state
-
-If evidence is missing, treat the phase as incomplete.
-
-## Final Response Contract
-
-For substantial tasks, final response must state:
-
-- changed files or behavior;
-- verification performed;
-- verification not run, if any;
-- Engram memory saved or explicit reason none was needed;
-- next step only if it is concrete.
-
-Keep final responses concise. Do not narrate the whole process.
+For substantial work, final response must state changed files or behavior, verification performed, verification not run if any, Engram memory saved or explicit reason none was needed, and concrete next step only when one remains.

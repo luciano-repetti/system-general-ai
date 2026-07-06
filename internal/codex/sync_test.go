@@ -22,6 +22,63 @@ func testTemplates() fstest.MapFS {
 	}
 }
 
+func TestCodexTemplatesDescribeEngramToolingAndBudget(t *testing.T) {
+	templateDir := filepath.Join("..", "..", "templates", "codex")
+
+	files := []string{
+		"AGENTS.md.global.tmpl",
+		"AGENTS.md.project.tmpl",
+		"engram-instructions.md",
+		"orchestrator.md",
+	}
+
+	combined := strings.Builder{}
+	contents := map[string]string{}
+	for _, name := range files {
+		path := filepath.Join(templateDir, name)
+		content := mustRead(t, path)
+		contents[name] = content
+		combined.WriteString("\n--- " + name + " ---\n")
+		combined.WriteString(content)
+	}
+	all := combined.String()
+
+	for _, want := range []string{
+		"mem_current_project",
+		"mem_context",
+		"mem_search",
+		"mem_get_observation",
+		"mem_save",
+		"mem_update",
+		"mem_suggest_topic_key",
+		"mem_session_summary",
+		"mem_judge",
+		"mem_compare",
+		"mem_doctor",
+		"ToolSearch",
+		"judgment_required",
+		"Search Budget",
+		"Do not save",
+		"Direct/trivial: no Engram",
+	} {
+		if !strings.Contains(all, want) {
+			t.Fatalf("Codex templates missing %q", want)
+		}
+	}
+
+	for name, content := range contents {
+		for _, forbidden := range []string{
+			"Save to Engram without being asked",
+			"Search Engram for relevant project memory before touching code",
+			"Engram is mandatory and always active",
+		} {
+			if strings.Contains(content, forbidden) {
+				t.Fatalf("%s contains over-eager Engram rule %q", name, forbidden)
+			}
+		}
+	}
+}
+
 func TestSyncWritesCodexArtifactsAndPreservesUserConfig(t *testing.T) {
 	root := t.TempDir()
 	project := filepath.Join(root, "project")
